@@ -1,0 +1,10 @@
+# Ignore the huge library folder
+venv/
+__pycache__/
+
+# Ignore sensitive keys (VERY IMPORTANT)
+config.py
+
+# Ignore compiled files
+*.pyc
+*.DS_Store
