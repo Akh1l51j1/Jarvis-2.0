@@ -6,7 +6,7 @@ from faster_whisper import WhisperModel
 # --- CONFIGURATION ---
 CHANNELS = 1
 RATE = 16000
-CHUNK = 512
+CHUNK = 512 # Critical for Silero VAD
 SILENCE_THRESHOLD = 0.8 
 VAD_SENSITIVITY = 0.5 
 
@@ -56,15 +56,14 @@ class AudioListener:
         audio_data = b''.join(frames)
         audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
         
-        # --- THE FIX: language="en" ---
+        # --- TRANSCRIBE WITH PROMPT FIX ---
         segments, _ = self.whisper.transcribe(
             audio_np, 
             beam_size=5,
-            language="en",  # <--- FORCES ENGLISH ONLY
+            language="en", 
             vad_filter=True, 
             vad_parameters=dict(min_silence_duration_ms=500),
-            # Add "Spotify" and your song names here
-            initial_prompt="Jarvis, open Spotify. Play songs like Tere Bina, Tum Hi Ho."
+            initial_prompt="Jarvis, open Spotify. Play music. Pause. Resume. Stop. Tere Bina, Tum Hi Ho."
         )
         
         full_text = ""

@@ -1,71 +1,71 @@
-import pyttsx3
+import edge_tts
 import pygame
+import asyncio
 import os
-import winsound # We bring this back as a backup
+
+# --- VOICE SETTINGS ---
+VOICE = "en-US-ChristopherNeural"
+RATE = "+1%"
+PITCH = "-2Hz"
 
 class Speaker:
     def __init__(self):
-        print(">> Loading Speaker...")
-        
-        # 1. Try to load Sound Effects
+        print(f">> Loading Human Neural Speaker ({VOICE})...")
         try:
             pygame.mixer.init()
             self.use_sounds = True
         except:
-            print(">> Warning: Pygame failed. Using Beeps.")
             self.use_sounds = False
             
-        # Load SFX (Check if files exist)
-        self.sounds = {}
         self.assets_dir = os.path.join(os.getcwd(), "assets")
-        
-        # We try to load them, but we won't crash if they are missing
-        self._load_sound("startup", "startup.mp3")
-        self._load_sound("listen", "listen.mp3")
-
-    def _load_sound(self, name, filename):
-        if not self.use_sounds: return
-        path = os.path.join(self.assets_dir, filename)
-        if os.path.exists(path):
-            self.sounds[name] = pygame.mixer.Sound(path)
 
     def play_sound(self, name):
-        """
-        Plays MP3 if available, otherwise plays System Beep.
-        """
-        if self.use_sounds and name in self.sounds:
-            # Option A: Cool MP3
-            self.sounds[name].play()
-        else:
-            # Option B: Fallback System Beep (So you never miss a trigger)
-            if name == "listen":
-                winsound.Beep(1000, 200) # High pitch ding
-            elif name == "startup":
-                winsound.Beep(600, 300)  # Low pitch boot sound
+        if not self.use_sounds: return
+        path = os.path.join(self.assets_dir, f"{name}.mp3")
+        if os.path.exists(path):
+            try:
+                pygame.mixer.Sound(path).play()
+            except: pass
+
+    # Dummy stop function for compatibility
+    def stop(self):
+        pass
+
+    # Boolean check for compatibility
+    @property
+    def is_speaking(self):
+        return False
 
     def speak(self, text):
-        clean_text = text.replace("*", "")
+        clean_text = text.replace("*", "").replace("#", "")
         print(f">> Speaking: {clean_text}")
         
+        output_file = "response.mp3"
+        
         try:
-            engine = pyttsx3.init('sapi5')
-            voices = engine.getProperty('voices')
-            try:
-                engine.setProperty('voice', voices[1].id) # Try Zira (Female)
-            except:
-                engine.setProperty('voice', voices[0].id) # Fallback David (Male)
-                
-            engine.setProperty('rate', 175)
-            engine.setProperty('volume', 1.0)
+            # Generate
+            asyncio.run(self._generate_audio(clean_text, output_file))
             
-            engine.say(clean_text)
-            engine.runAndWait()
-            del engine
+            # Play (Blocking)
+            if not os.path.exists(output_file): return
+            
+            pygame.mixer.music.load(output_file)
+            pygame.mixer.music.play()
+            
+            while pygame.mixer.music.get_busy():
+                pygame.time.Clock().tick(10)
+            
+            pygame.mixer.music.unload()
+            try: os.remove(output_file)
+            except: pass
+            
         except Exception as e:
             print(f"Audio Error: {e}")
 
+    async def _generate_audio(self, text, filename):
+        communicate = edge_tts.Communicate(text, VOICE, rate=RATE, pitch=PITCH)
+        await communicate.save(filename)
+
 if __name__ == "__main__":
     bot = Speaker()
-    print("Testing Sound...")
-    bot.play_sound("listen") # Should Beep or Ding
-    bot.speak("Audio systems fully operational.")
+    bot.speak("Systems restored to stable protocol.")

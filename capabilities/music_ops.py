@@ -32,8 +32,14 @@ class MusicOps:
         except Exception:
             return False
 
-    def play_music(self, song_name):
+    # THE FIX: song_name=None makes the argument optional
+    def play_music(self, song_name=None):
+        # If no song is provided (User just said "Play"), treat it as RESUME
+        if song_name is None:
+            return self.resume_music()
+            
         if not self.sp: return "Spotify connection failed."
+        
         try:
             print(f"   [Spotify] Searching for: {song_name}")
             results = self.sp.search(q=song_name, limit=1, type='track')
@@ -44,21 +50,28 @@ class MusicOps:
                 track_name = track['name']
                 artist = track['artists'][0]['name']
                 
-                # TRY PREMIUM API
                 try:
                     self.sp.start_playback(uris=[track_uri])
                     return f"Playing {track_name} by {artist}."
                 except SpotifyException as e:
-                    # FALLBACK TO FREE
-                    print("   [Spotify] Using Deep Link Fallback.")
-                    os.system(f"start {track_uri}")
-                    return f"Opening {track_name} by {artist} on Desktop."
+                    # FREE TIER FALLBACK
+                    if "PREMIUM_REQUIRED" in str(e) or "403" in str(e):
+                        print("   [Spotify] Premium not detected. Using Deep Link.")
+                        os.system(f"start {track_uri}")
+                        return f"Opening {track_name} by {artist} on Desktop."
+                    elif "NO_ACTIVE_DEVICE" in str(e):
+                        return "Please open Spotify first."
+                    else:
+                        return f"Spotify Error: {e}"
             else:
                 return f"I couldn't find {song_name}."
         except Exception as e:
             return f"Error searching for song: {e}"
 
     def pause_music(self):
+        if not self.is_playing():
+            return "Music is already paused."
+
         try:
             if self.sp: self.sp.pause_playback()
         except SpotifyException:
@@ -66,10 +79,14 @@ class MusicOps:
         return "Music paused."
 
     def resume_music(self):
+        if self.is_playing():
+            return "Music is already playing."
+
         try:
             if self.sp: self.sp.start_playback()
         except SpotifyException:
             pyautogui.press("playpause")
         return "Music resumed."
 
+# Create instance
 music_engine = MusicOps()
