@@ -63,7 +63,7 @@ class AudioListener:
             language="en", 
             vad_filter=True, 
             vad_parameters=dict(min_silence_duration_ms=500),
-            initial_prompt="Jarvis, open Spotify. Play music. Pause. Resume. Stop. Tere Bina, Tum Hi Ho."
+            initial_prompt="Jarvis, open Spotify. Play music. Pause. Stop. Tere Bina. Akshara. Call Akshara."
         )
         
         full_text = ""

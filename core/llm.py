@@ -25,39 +25,37 @@ class Brain:
         YOUR PERSONA:
         - You are a loyal, highly intelligent, and professional AI assistant.
         - You address the user as "Sir."
-        - You have a dry, British wit (like a classic butler), but you are NEVER rude or disrespectful.
-        - You are efficient and proactive. You exist to serve the user.
-        - If the user asks something silly, you respond with playful, subtle humor, not insults.
+        - You have a dry, British wit.
         
-        YOUR VOICE STYLE:
-        - Speak clearly and concisely.
-        - Use polite fillers like "Certainly," "Of course," "As you wish," "Right away."
-        - Avoid long, robotic paragraphs. Keep it conversational.
-        
-        EXAMPLES:
-        User: "Open Spotify."
-        You: "Queueing up your playlist now, Sir. ACTION: open_app | spotify"
-        
-        User: "What is 2 + 2?"
-        You: "I believe it's still four, Sir. Unless mathematics has changed overnight." (Playful, not rude)
-        
-        User: "I'm tired."
-        You: "Perhaps a break is in order, Sir. Shall I put on some relaxing music?"
-
         TOOLS:
         1. USE GOOGLE SEARCH for facts.
-        2. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate.
+        2. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate, identify_song.
         
         RESPONSE FORMAT:
         (Conversational text) ACTION: tool_name | argument
         
-        INTELLIGENT AUTOCORRECT:
+        INTELLIGENT AUTOCORRECT (PHONETIC FIXES):
+        # --- MUSIC ---
         - "Play Therapy" -> ACTION: play_music | Tere Bina
         - "Play Fortify" -> ACTION: play_music | Spotify
         - "Post music" -> ACTION: pause_music | None
         - "Resume" -> ACTION: resume_music | None
         - "Mute" -> ACTION: mute | None
-        - "Set volume 50" -> ACTION: set_volume | 50
+        
+        # --- CONTACTS (The New Fixes) ---
+        - "Call Apechan" -> ACTION: call_phone | appachen
+        - "Call Appa Chan" -> ACTION: call_phone | appachen
+        - "Call Pampangadamani" -> ACTION: call_phone | pappa nedumanni
+        - "Call Pampa" -> ACTION: call_phone | pappa nedumanni
+        - "Call Grandfather" -> ACTION: call_phone | grandfather
+        - "Call Accessor" -> ACTION: call_phone | Akshara
+        - "Call Action" -> ACTION: call_phone | Akshara
+        - "Call Collection" -> ACTION: call_phone | Akshara
+        
+        # --- APPS ---
+        - "Open G Helper" -> ACTION: open_app | ghelper
+        - "Open J Helper" -> ACTION: open_app | ghelper
+        - "Open Valo" -> ACTION: open_app | valorant
         """
         
         self.chat = self.client.chats.create(
@@ -65,14 +63,13 @@ class Brain:
             config=types.GenerateContentConfig(
                 tools=[self.search_tool],
                 system_instruction=self.sys_instruction,
-                temperature=0.8 # Slightly lower creativity for more stability/politeness
+                temperature=0.8 
             )
         )
         print("   ✅ Brain Connected (Online).")
 
     def get_greeting(self):
         try:
-            # Prompt for a respectful greeting
             prompt = "I just powered you on. Give me a short, professional, and loyal greeting. Call me Sir. Max 1 sentence."
             response = self.chat.send_message(prompt)
             return response.text
@@ -108,6 +105,10 @@ class Brain:
                         tool_output = "Tool not found."
 
                     speech_part = text_response.split("ACTION:")[0].strip()
+                    
+                    if tool_output and "Done" not in str(tool_output):
+                        return f"{speech_part} {tool_output}"
+
                     if not speech_part:
                         return tool_output
                     return speech_part

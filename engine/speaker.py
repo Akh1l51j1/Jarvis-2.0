@@ -2,15 +2,16 @@ import edge_tts
 import pygame
 import asyncio
 import os
+import keyboard # <--- NEW LIBRARY
 
-# --- VOICE SETTINGS ---
+# SETTINGS
 VOICE = "en-US-ChristopherNeural"
-RATE = "+1%"
+RATE = "+20%" 
 PITCH = "-2Hz"
 
 class Speaker:
     def __init__(self):
-        print(f">> Loading Human Neural Speaker ({VOICE})...")
+        print(f">> Loading Speaker (Press 'ESC' to interrupt)...")
         try:
             pygame.mixer.init()
             self.use_sounds = True
@@ -27,15 +28,6 @@ class Speaker:
                 pygame.mixer.Sound(path).play()
             except: pass
 
-    # Dummy stop function for compatibility
-    def stop(self):
-        pass
-
-    # Boolean check for compatibility
-    @property
-    def is_speaking(self):
-        return False
-
     def speak(self, text):
         clean_text = text.replace("*", "").replace("#", "")
         print(f">> Speaking: {clean_text}")
@@ -46,13 +38,20 @@ class Speaker:
             # Generate
             asyncio.run(self._generate_audio(clean_text, output_file))
             
-            # Play (Blocking)
+            # Play
             if not os.path.exists(output_file): return
             
             pygame.mixer.music.load(output_file)
             pygame.mixer.music.play()
             
+            # --- THE KILL SWITCH LOOP ---
             while pygame.mixer.music.get_busy():
+                # If user presses ESC, kill audio instantly
+                if keyboard.is_pressed('esc'):
+                    print(">> 🛑 Speech Interrupted by User (ESC).")
+                    pygame.mixer.music.stop()
+                    break
+                
                 pygame.time.Clock().tick(10)
             
             pygame.mixer.music.unload()
@@ -68,4 +67,4 @@ class Speaker:
 
 if __name__ == "__main__":
     bot = Speaker()
-    bot.speak("Systems restored to stable protocol.")
+    bot.speak("I am speaking a very long sentence. Press Escape now to shut me up immediately.")
