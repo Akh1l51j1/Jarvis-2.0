@@ -4,6 +4,7 @@ import sys
 import os
 import time
 import re 
+from datetime import datetime 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
@@ -14,13 +15,14 @@ class Brain:
         print(">> Connecting to Gemini 2.0 (Flash)...")
         self.client = genai.Client(api_key=config.GEMINI_API_KEY)
         
-        self.search_tool = types.Tool(
-            google_search=types.GoogleSearch()
-        )
+        # --- NEW DATE CALCULATION ---
+        today = datetime.now().strftime("%A, %B %d, %Y")
         
-        # --- THE "LOYAL BUTLER" PERSONA ---
-        self.sys_instruction = """
+        # Note the 'f' before the quotes for the f-string!
+        self.sys_instruction = f"""
         You are J.A.R.V.I.S.
+        
+        CURRENT DATE: {today}
         
         YOUR PERSONA:
         - You are a loyal, highly intelligent, and professional AI assistant.
@@ -28,7 +30,7 @@ class Brain:
         - You have a dry, British wit.
         
         TOOLS:
-        1. USE GOOGLE SEARCH for facts.
+        1. USE 'search_google' tool for facts/events. (Do not use internal knowledge for news).
         2. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate, identify_song.
         
         RESPONSE FORMAT:
@@ -61,7 +63,6 @@ class Brain:
         self.chat = self.client.chats.create(
             model="gemini-2.0-flash",
             config=types.GenerateContentConfig(
-                tools=[self.search_tool],
                 system_instruction=self.sys_instruction,
                 temperature=0.8 
             )
@@ -106,13 +107,24 @@ class Brain:
 
                     speech_part = text_response.split("ACTION:")[0].strip()
                     
-                    if tool_output and "Done" not in str(tool_output):
-                        return f"{speech_part} {tool_output}"
+                    # --- NEW INTELLIGENT DIGESTION ---
+                    # 1. If the tool gave information (like Search), read and summarize it.
+                    if tool_name in ["search_google", "read_file", "identify_song", "system_status"]:
+                        print(f"   [Brain Logic] Digesting info from {tool_name}...")
+                        follow_up_prompt = (
+                            f"SYSTEM_OUTPUT: The tool '{tool_name}' returned this data:\n"
+                            f"{tool_output}\n\n"
+                            f"INSTRUCTION: Summarize this answer for the user professionally and briefly."
+                        )
+                        final_response = self.chat.send_message(follow_up_prompt)
+                        return final_response.text
 
+                    # 2. For simple actions (Volume, Music, Apps), just speak the result.
+                    speech_part = text_response.split("ACTION:")[0].strip()
+                    
                     if not speech_part:
-                        return tool_output
+                        return f"Done. {str(tool_output)}"
                     return speech_part
-                
                 return text_response
 
             except Exception as e:

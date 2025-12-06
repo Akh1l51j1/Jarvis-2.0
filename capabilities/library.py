@@ -8,7 +8,7 @@ tool_registry = {
     # System
     "open_app": { "func": SystemOps.open_application, "desc": "Opens apps." },
     "close_app": { "func": SystemOps.close_application, "desc": "Closes apps." },
-    "search_google": { "func": SystemOps.search_google, "desc": "Opens a browser tab with google search." },
+    "search_google": { "func": SystemOps.search_web, "desc": "Searches the web for facts." },
     "system_status": { "func": SystemOps.get_system_status, "desc": "Checks CPU." },
     "terminate": { "func": SystemOps.close_jarvis, "desc": "Shuts down." },
     

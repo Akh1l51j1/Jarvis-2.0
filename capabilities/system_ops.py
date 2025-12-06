@@ -1,16 +1,27 @@
 import os
 import sys
 import psutil
+from tavily import TavilyClient
+import config
 
 class SystemOps:
     @staticmethod
-    def search_google(query):
-        """Opens a Google search in the default browser."""
-        import webbrowser
-        print(f"   [Tool] Googling: {query}")
-        url = f"https://www.google.com/search?q={query}"
-        webbrowser.open(url)
-        return f"Searching for {query} on Google."
+    def search_web(query):
+        """Searches the web using Tavily (better for AI)."""
+        print(f"   [Tavily] Searching: {query}")
+        try:
+            client = TavilyClient(api_key=config.TAVILY_API_KEY)
+            # 'search_depth="basic"' is faster and cheaper
+            response = client.search(query=query, search_depth="basic", max_results=3)
+            
+            # Format the results into a readable string
+            results = []
+            for result in response.get('results', []):
+                results.append(f"- {result['title']}: {result['content']}")
+            
+            return "\n".join(results)
+        except Exception as e:
+            return f"Search Error: {e}"
 
     @staticmethod
     def open_application(app_name):
