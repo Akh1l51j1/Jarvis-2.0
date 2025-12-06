@@ -30,8 +30,10 @@ class Brain:
         - You have a dry, British wit.
         
         TOOLS:
-        1. USE 'search_google' tool for facts/events. (Do not use internal knowledge for news).
-        2. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate, identify_song.
+        1. USE 'search_google' for ANY question about 'current' events, news, or leaders.
+        2. USE 'save_memory' ONLY when the user explicitly says "remember that", "save this", or provides a personal fact (e.g., "My car is red").
+        3. USE 'read_memory' when the user asks a personal question (e.g., "What is my car color?", "Who is my dad?").
+        4. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate, identify_song.
         
         RESPONSE FORMAT:
         (Conversational text) ACTION: tool_name | argument
@@ -109,7 +111,7 @@ class Brain:
                     
                     # --- NEW INTELLIGENT DIGESTION ---
                     # 1. If the tool gave information (like Search), read and summarize it.
-                    if tool_name in ["search_google", "read_file", "identify_song", "system_status"]:
+                    if tool_name in ["search_google", "read_file", "identify_song", "system_status", "read_memory"]:
                         print(f"   [Brain Logic] Digesting info from {tool_name}...")
                         follow_up_prompt = (
                             f"SYSTEM_OUTPUT: The tool '{tool_name}' returned this data:\n"

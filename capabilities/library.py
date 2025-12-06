@@ -3,6 +3,7 @@ from capabilities.music_ops import music_engine
 from capabilities.volume_ops import volume_engine
 from capabilities.comm_ops import comm_engine
 from capabilities.shazam_ops import identify_music
+from capabilities.rag_ops import rag_engine
 
 tool_registry = {
     # System
@@ -32,5 +33,15 @@ tool_registry = {
     "whatsapp_call": { 
         "func": comm_engine.whatsapp_call, 
         "desc": "Calls someone on WhatsApp." 
-    }
+    },
+
+    # Memory
+    "save_memory": { 
+        "func": rag_engine.save_memory, 
+        "desc": "Saves a fact permanently. Use for user preferences, names, or specific requests to remember." 
+    },
+    "read_memory": { 
+        "func": rag_engine.retrieve_memory, 
+        "desc": "Retrieves a specific fact from memory. Use when asked about past info." 
+    },
 }
