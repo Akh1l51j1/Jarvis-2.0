@@ -37,14 +37,12 @@ def main():
 
     while True:
         try:
-            # --- STATUS DISPLAY ---
             if conversation_mode:
                 remaining = int(CONVERSATION_TIMEOUT - (time.time() - last_active_time))
                 print(f"\n>> Active Mode (Timeout in {remaining}s)...")
             else:
                 print("\n>> Waiting for Wake Word...")
 
-            # --- LISTEN ---
             user_text = ear.listen()
             
             # 1. TIMEOUT CHECK
@@ -52,8 +50,7 @@ def main():
                 print(">> Time out. Returning to Standby.")
                 mouth.play_sound("shutdown") 
                 conversation_mode = False
-                # If we timed out, ignore whatever was just heard (usually noise)
-                continue
+                if len(user_text) < 3: continue
 
             # 2. NOISE FILTER
             if len(user_text) < 3: continue 
@@ -66,9 +63,6 @@ def main():
                     break
             
             should_process = False
-            
-            # LOGIC: If we hear wake word, we ALWAYS process.
-            # If we are in conversation mode, we process everything.
             if is_wake_word:
                 should_process = True
                 conversation_mode = True
@@ -81,63 +75,80 @@ def main():
                 print(f"USER: {user_text}")
                 if is_wake_word: mouth.play_sound("listen")
 
-                # Auto-Duck (Pause Music while listening/thinking)
                 was_playing = music_engine.is_playing()
                 if was_playing: music_engine.pause_music()
 
-                # Clean Command
                 command = user_text.lower()
                 for word in config.WAKE_WORDS:
                     command = command.replace(word, "").strip()
                 
-                # --- PHONETIC CLEANUP ---
                 if "braille" in command: command = command.replace("braille", "brave")
 
-                # --- DISMISSAL ---
-                soft_triggers = ["nothing", "no thanks", "stop listening", "bye", "goodbye"]
+                # --- DISMISSAL (Soft Sleep) ---
+                soft_triggers = [
+                    "nothing", "no thanks", "no thank you",
+                    "turn off mic", "stop listening",
+                    "that is all", "thats all", "done",
+                    "thank you", "thanks", "thankue",
+                    "bye", "see you", "goodbye"
+                ]
                 if any(trigger in command for trigger in soft_triggers):
+                    print(">> Conversation Dismissed.")
                     mouth.speak("Standing by, Sir.")
                     conversation_mode = False
                     if was_playing: music_engine.resume_music()
                     continue 
 
-                # --- KILL SWITCH ---
-                if "shut down" in command or "power off" in command:
-                    mouth.speak("Goodbye, Sir.")
+                # --- KILL SWITCH (Hard Exit) ---
+                # This catches manual commands like "Jarvis shut down"
+                exit_triggers = ["shut down", "shutdown", "power off", "terminate", "exit jarvis", "kill program"]
+                if any(trigger in command for trigger in exit_triggers):
+                    print(">> Termination Sequence Initiated.")
+                    mouth.speak("Shutting down systems. Goodbye.")
+                    time.sleep(2)
                     sys.exit(0)
 
-                # --- BRAIN EXECUTION ---
+                # Handle "Jarvis" only
+                if len(command) < 2:
+                    print(">> Listening for command...")
+                    command = ear.listen()
+                    if len(command) > 2:
+                        last_active_time = time.time()
+
+                # BRAIN
                 if len(command) > 2:
                     response = brain.think(command)
                     print(f"JARVIS: {response}")
                     mouth.speak(response)
                     last_active_time = time.time() 
                     
-                    # --- MUSIC MODE FIX (Crucial) ---
-                    # If the user asked for music, DISABLE Active Mode immediately
-                    # so Jarvis doesn't listen to the song and hallucinate.
-                    music_triggers = ["play", "song", "spotify", "music", "track"]
-                    if any(x in command for x in music_triggers) and "pause" not in command:
-                        print(">> Music detected. Exiting Active Mode to prevent echo.")
-                        conversation_mode = False 
+                    # --- BRAIN KILL SWITCH ---
+                    # If the Brain tool decided to terminate, we must obey.
+                    if "terminating" in response.lower() or "shutting down" in response.lower():
+                        print(">> System Exit Triggered by Brain.")
+                        time.sleep(2)
+                        sys.exit(0)
                 else:
                     print("   (No command heard)")
 
-                # --- SMART RESUME ---
-                # Only resume if we were playing BEFORE, and the user didn't ask to stop/pause/change song
-                stop_keywords = ["stop", "pause", "quiet", "silence", "play", "song"]
+                # Resume Music Logic
+                music_keywords = ["play", "song", "music", "track", "spotify", "start"]
+                stop_keywords = ["stop", "pause", "quiet", "silence"]
+                is_music_command = any(k in command for k in music_keywords)
                 is_stop_command = any(k in command for k in stop_keywords)
 
-                if was_playing and not is_stop_command:
-                    time.sleep(0.5)
+                if was_playing and not is_music_command and not is_stop_command:
+                    time.sleep(1)
                     print(">> Resuming background audio...")
                     music_engine.resume_music()
+                elif is_music_command:
+                    print(">> New song requested.")
             
             else:
-                # In standby, we ignore everything that isn't the wake word
-                pass
+                print(f"   [Ignored]: '{user_text}'")
                 
         except KeyboardInterrupt:
+            print("\n>> Shutting down...")
             break
         except Exception as e:
             print(f">> Loop Error: {e}")

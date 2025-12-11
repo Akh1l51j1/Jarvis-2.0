@@ -1,27 +1,45 @@
-import edge_tts
+import os
+import sounddevice as sd
+import soundfile as sf
+from kokoro_onnx import Kokoro
 import pygame
 import asyncio
-import os
-import keyboard # <--- NEW LIBRARY
+import time
+import keyboard # <--- Re-added for ESC key
 
-# SETTINGS
-VOICE = "en-US-ChristopherNeural"
-RATE = "+20%" 
-PITCH = "-2Hz"
+# --- SETTINGS ---
+VOICE_NAME = "af_sarah" 
 
 class Speaker:
     def __init__(self):
-        print(f">> Loading Speaker (Press 'ESC' to interrupt)...")
+        print(">> Loading Kokoro TTS (v1.0)...")
+        
         try:
             pygame.mixer.init()
-            self.use_sounds = True
-        except:
-            self.use_sounds = False
-            
+            self.use_sfx = True
+        except Exception as e:
+            print(f"   [Speaker] Pygame Init Failed: {e}")
+            self.use_sfx = False
+
         self.assets_dir = os.path.join(os.getcwd(), "assets")
+        
+        engine_dir = os.path.dirname(__file__)
+        model_path = os.path.join(engine_dir, "kokoro-v1.0.onnx")
+        voices_path = os.path.join(engine_dir, "voices-v1.0.bin")
+        
+        if not os.path.exists(model_path) or not os.path.exists(voices_path):
+            print(f"   [Error] v1.0 Models missing at {engine_dir}")
+            self.kokoro = None
+        else:
+            try:
+                self.kokoro = Kokoro(model_path, voices_path)
+                print("   ✅ Kokoro TTS Loaded.")
+            except Exception as e:
+                print(f"   [Speaker Error] Failed to load model: {e}")
+                self.kokoro = None
 
     def play_sound(self, name):
-        if not self.use_sounds: return
+        if not self.use_sfx: return
         path = os.path.join(self.assets_dir, f"{name}.mp3")
         if os.path.exists(path):
             try:
@@ -29,42 +47,39 @@ class Speaker:
             except: pass
 
     def speak(self, text):
-        clean_text = text.replace("*", "").replace("#", "")
+        if not self.kokoro: return
+
+        clean_text = text.replace("*", "").replace("#", "").strip()
+        if not clean_text: return
+
         print(f">> Speaking: {clean_text}")
-        
-        output_file = "response.mp3"
-        
+
         try:
-            # Generate
-            asyncio.run(self._generate_audio(clean_text, output_file))
+            samples, sample_rate = self.kokoro.create(
+                clean_text, 
+                voice=VOICE_NAME, 
+                speed=1.0, 
+                lang="en-us"
+            )
+
+            # --- SMART INTERRUPT PLAYBACK ---
+            sd.play(samples, sample_rate)
             
-            # Play
-            if not os.path.exists(output_file): return
+            # Calculate how long the audio is (in seconds)
+            duration = len(samples) / sample_rate
+            start_time = time.time()
             
-            pygame.mixer.music.load(output_file)
-            pygame.mixer.music.play()
-            
-            # --- THE KILL SWITCH LOOP ---
-            while pygame.mixer.music.get_busy():
-                # If user presses ESC, kill audio instantly
+            # Loop until audio finishes OR user presses ESC
+            while time.time() - start_time < duration:
                 if keyboard.is_pressed('esc'):
-                    print(">> 🛑 Speech Interrupted by User (ESC).")
-                    pygame.mixer.music.stop()
+                    print(">> 🛑 Speech Interrupted.")
+                    sd.stop() # Kill Audio
                     break
-                
-                pygame.time.Clock().tick(10)
-            
-            pygame.mixer.music.unload()
-            try: os.remove(output_file)
-            except: pass
+                time.sleep(0.05) # Check every 50ms
             
         except Exception as e:
-            print(f"Audio Error: {e}")
-
-    async def _generate_audio(self, text, filename):
-        communicate = edge_tts.Communicate(text, VOICE, rate=RATE, pitch=PITCH)
-        await communicate.save(filename)
+            print(f"   [Speaker Error] {e}")
 
 if __name__ == "__main__":
     bot = Speaker()
-    bot.speak("I am speaking a very long sentence. Press Escape now to shut me up immediately.")
+    bot.speak("Testing interruption. Press escape to stop me.")

@@ -1,0 +1,16 @@
+# Jarvis 2.0 - requirements.txt
+# AI & Brain
+google-generativeai
+openai-whisper
+faster-whisper
+torch --index-url https://download.pytorch.org/whl/cu118
+
+# Audio Engine (The "Ear" & "Mouth")
+pyaudio
+numpy
+pyttsx3
+playsound==1.2.2
+
+# System Tools
+psutil
+spotipy

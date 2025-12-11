@@ -1,10 +1,9 @@
-from google import genai
-from google.genai import types
-import sys
 import os
+import sys
+import re
 import time
-import re 
-from datetime import datetime 
+from datetime import datetime
+from groq import Groq
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
@@ -12,133 +11,129 @@ from capabilities.library import tool_registry
 
 class Brain:
     def __init__(self):
-        print(">> Connecting to Gemini 2.0 (Flash)...")
-        self.client = genai.Client(api_key=config.GEMINI_API_KEY)
+        print(">> Connecting to Groq (Llama 3.3)...")
+        self.client = Groq(api_key=config.GROQ_API_KEY)
+        self.model = "llama-3.3-70b-versatile"
         
-        # --- NEW DATE CALCULATION ---
+        self.history = [] 
+        self.max_history = 15 
+
         today = datetime.now().strftime("%A, %B %d, %Y")
         
-        # Note the 'f' before the quotes for the f-string!
-        self.sys_instruction = f"""
+        self.system_instruction = f"""
         You are J.A.R.V.I.S.
-        
         CURRENT DATE: {today}
         
-        YOUR PERSONA:
-        - You are a loyal, highly intelligent, and professional AI assistant.
-        - You address the user as "Sir."
-        - You have a dry, British wit.
+        GUIDELINES:
+        1. **MEMORY RULE (CRITICAL):**
+           - IF the user ASKS a question about themselves (e.g., "What is my car?", "Who am I?"), you MUST use 'read_memory'.
+           - ONLY use 'save_memory' if the user explicitly TELLS you a fact (e.g., "My car is red", "Remember that I like pizza").
+        
+        2. **FILE RULE:**
+           - IF the user asks "Where is [file]?", use 'locate_file'.
         
         TOOLS:
-        1. USE 'search_google' for ANY question about 'current' events, news, or leaders.
-        2. USE 'save_memory' ONLY when the user explicitly says "remember that", "save this", or provides a personal fact (e.g., "My car is red").
-        3. USE 'read_memory' when the user asks a personal question (e.g., "What is my car color?", "Who is my dad?").
-        4. LOCAL TOOLS: open_app, play_music, set_volume, call_phone, terminate, identify_song.
+        1. USE 'search_google' for news/world facts.
+        2. MEMORY TOOLS: 'read_memory' (for questions), 'save_memory' (for statements), 'forget_memory'.
+        3. FILE TOOLS: 'locate_file', 'read_file', 'copy_file', 'cut_file', 'paste_file', 'delete_file'.
+        4. LOCAL TOOLS: open_app, close_app, play_music, pause_music, resume_music, set_volume, call_phone, terminate.
         
         RESPONSE FORMAT:
         (Conversational text) ACTION: tool_name | argument
         
-        INTELLIGENT AUTOCORRECT (PHONETIC FIXES):
-        # --- MUSIC ---
-        - "Play Therapy" -> ACTION: play_music | Tere Bina
-        - "Play Fortify" -> ACTION: play_music | Spotify
-        - "Post music" -> ACTION: pause_music | None
+        INTELLIGENT AUTOCORRECT:
+        - "Pause music" -> ACTION: pause_music | None
+        - "Stop music" -> ACTION: pause_music | None
         - "Resume" -> ACTION: resume_music | None
-        - "Mute" -> ACTION: mute | None
-        
-        # --- CONTACTS (The New Fixes) ---
-        - "Call Apechan" -> ACTION: call_phone | appachen
-        - "Call Appa Chan" -> ACTION: call_phone | appachen
-        - "Call Pampangadamani" -> ACTION: call_phone | pappa nedumanni
-        - "Call Pampa" -> ACTION: call_phone | pappa nedumanni
-        - "Call Grandfather" -> ACTION: call_phone | grandfather
-        - "Call Accessor" -> ACTION: call_phone | Akshara
-        - "Call Action" -> ACTION: call_phone | Akshara
-        - "Call Collection" -> ACTION: call_phone | Akshara
-        
-        # --- APPS ---
-        - "Open G Helper" -> ACTION: open_app | ghelper
-        - "Open J Helper" -> ACTION: open_app | ghelper
-        - "Open Valo" -> ACTION: open_app | valorant
+        - "Volume 100" -> ACTION: set_volume | 100
+        - "Close not bad" -> ACTION: close_app | notepad
         """
         
-        self.chat = self.client.chats.create(
-            model="gemini-2.0-flash",
-            config=types.GenerateContentConfig(
-                system_instruction=self.sys_instruction,
-                temperature=0.8 
-            )
-        )
-        print("   ✅ Brain Connected (Online).")
+        self.history.append({"role": "system", "content": self.system_instruction})
+        print("   ✅ Brain Connected (Groq Online).")
 
     def get_greeting(self):
-        try:
-            prompt = "I just powered you on. Give me a short, professional, and loyal greeting. Call me Sir. Max 1 sentence."
-            response = self.chat.send_message(prompt)
-            return response.text
-        except:
-            return "At your service, Sir. Systems are ready."
+        return "Systems online, Sir."
+
+    def _execute_tool(self, tool_name, tool_arg):
+        print(f"   [Brain Logic] Executing: {tool_name} -> {tool_arg}")
+        if tool_name in tool_registry:
+            func = tool_registry[tool_name]["func"]
+            try:
+                if tool_arg: return func(tool_arg)
+                else: return func()
+            except Exception as e:
+                return f"Tool Error: {e}"
+        return "Tool not found."
+
+    def _process_response(self, response_text):
+        action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*)", response_text, re.IGNORECASE | re.DOTALL)
+        
+        if action_match:
+            tool_name = action_match.group(1).strip()
+            tool_arg = action_match.group(2).strip()
+            if tool_arg.lower() == "none" or tool_arg == "": tool_arg = None
+            
+            tool_output = self._execute_tool(tool_name, tool_arg)
+            speech_part = response_text.split("ACTION:")[0].strip()
+            
+            # Recurse for data tools
+            if tool_name in ["search_google", "read_file", "identify_song", "read_memory", "locate_file"]:
+                return (True, tool_output, tool_name) 
+            
+            if not speech_part:
+                return (False, f"Done. {str(tool_output)}", None)
+            
+            return (False, speech_part, None)
+            
+        return (False, response_text, None)
 
     def think(self, user_input):
-        retries = 3
-        for attempt in range(retries):
-            try:
-                response = self.chat.send_message(user_input)
-                text_response = response.text
+        self.history.append({"role": "user", "content": user_input})
+        if len(self.history) > self.max_history:
+            self.history = [self.history[0]] + self.history[-(self.max_history-1):]
+
+        try:
+            # 1. INITIAL THINK
+            completion = self.client.chat.completions.create(
+                messages=self.history,
+                model=self.model,
+                temperature=0.6,
+                max_tokens=500
+            )
+            response_text = completion.choices[0].message.content
+            self.history.append({"role": "assistant", "content": response_text})
+
+            # 2. PROCESS ACTION
+            recurse, output_or_speech, tool_used = self._process_response(response_text)
+            
+            # 3. RECURSION (Digest Info)
+            if recurse:
+                print(f"   [Brain Logic] Digesting info from {tool_used}...")
                 
-                action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*)", text_response, re.IGNORECASE)
+                follow_up_prompt = (
+                    f"SYSTEM_OUTPUT: The tool '{tool_used}' returned this data:\n"
+                    f"{output_or_speech}\n\n"
+                    f"INSTRUCTION: Answer the user's question based on this data. "
+                    f"Do NOT say 'The tool returned' or list other unrelated memories. "
+                    f"Do NOT mention dates unless asked. Just give the specific answer."
+                )
+                self.history.append({"role": "system", "content": follow_up_prompt})
                 
-                if action_match:
-                    tool_name = action_match.group(1).strip()
-                    tool_arg = action_match.group(2).strip()
-                    
-                    if tool_arg.lower() == "none" or tool_arg == "":
-                        tool_arg = None
-                    
-                    print(f"   [Brain Logic] Executing: {tool_name} -> {tool_arg}")
-                    
-                    tool_output = "Done."
-                    if tool_name in tool_registry:
-                        func = tool_registry[tool_name]["func"]
-                        if tool_arg: 
-                            tool_output = func(tool_arg)
-                        else: 
-                            tool_output = func()
-                    else:
-                        tool_output = "Tool not found."
+                follow_up_completion = self.client.chat.completions.create(
+                    messages=self.history,
+                    model=self.model
+                )
+                final_response = follow_up_completion.choices[0].message.content
+                self.history.append({"role": "assistant", "content": final_response})
+                
+                _, final_speech, _ = self._process_response(final_response)
+                return final_speech
 
-                    speech_part = text_response.split("ACTION:")[0].strip()
-                    
-                    # --- NEW INTELLIGENT DIGESTION ---
-                    # 1. If the tool gave information (like Search), read and summarize it.
-                    if tool_name in ["search_google", "read_file", "identify_song", "system_status", "read_memory"]:
-                        print(f"   [Brain Logic] Digesting info from {tool_name}...")
-                        follow_up_prompt = (
-                            f"SYSTEM_OUTPUT: The tool '{tool_name}' returned this data:\n"
-                            f"{tool_output}\n\n"
-                            f"INSTRUCTION: Summarize this answer for the user professionally and briefly."
-                        )
-                        final_response = self.chat.send_message(follow_up_prompt)
-                        return final_response.text
+            return output_or_speech
 
-                    # 2. For simple actions (Volume, Music, Apps), just speak the result.
-                    speech_part = text_response.split("ACTION:")[0].strip()
-                    
-                    if not speech_part:
-                        return f"Done. {str(tool_output)}"
-                    return speech_part
-                return text_response
-
-            except Exception as e:
-                error_msg = str(e)
-                if "429" in error_msg:
-                    print(f"   [Rate Limit] Cooling down... (Attempt {attempt+1}/{retries})")
-                    time.sleep(5)
-                    continue
-                else:
-                    return f"Error: {e}"
-        
-        return "I seem to be overloaded, Sir. My apologies."
+        except Exception as e:
+            return f"Error: {e}"
 
 if __name__ == "__main__":
     bot = Brain()

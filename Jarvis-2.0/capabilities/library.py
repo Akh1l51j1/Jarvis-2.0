@@ -4,7 +4,6 @@ from capabilities.volume_ops import volume_engine
 from capabilities.comm_ops import comm_engine
 from capabilities.shazam_ops import identify_music
 from capabilities.rag_ops import rag_engine
-from capabilities.file_ops import FileOps
 
 tool_registry = {
     # System
@@ -39,40 +38,10 @@ tool_registry = {
     # Memory
     "save_memory": { 
         "func": rag_engine.save_memory, 
-        "desc": "Saves a fact permanently." 
+        "desc": "Saves a fact permanently. Use for user preferences, names, or specific requests to remember." 
     },
     "read_memory": { 
         "func": rag_engine.retrieve_memory, 
-        "desc": "Retrieves facts." 
-    },
-    "forget_memory": {
-        "func": rag_engine.delete_memory,
-        "desc": "Deletes a specific fact from memory. Usage: 'forget that my car is red'"
-    },
-
-    #file operations
-    "read_file": { 
-        "func": FileOps.read_file, 
-        "desc": "Reads a file. Arg: filename" 
-    },
-    "copy_file": { 
-        "func": FileOps.copy_file, 
-        "desc": "Copies a file to clipboard. Arg: filename" 
-    },
-    "cut_file": { 
-        "func": FileOps.cut_file, 
-        "desc": "Cuts a file. Arg: filename" 
-    },
-    "paste_file": { 
-        "func": FileOps.paste_file, 
-        "desc": "Pastes clipboard to folder. Arg: folder path (e.g., 'D:/Data' or 'Desktop')" 
-    },
-    "delete_file": { 
-        "func": FileOps.delete_file, 
-        "desc": "Moves file to Recycle Bin. Arg: filename" 
-    },
-    "locate_file": { 
-        "func": FileOps.locate_file, 
-        "desc": "Finds a file path. Arg: filename" 
+        "desc": "Retrieves a specific fact from memory. Use when asked about past info." 
     },
 }

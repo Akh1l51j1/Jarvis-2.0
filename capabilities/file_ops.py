@@ -1,86 +1,130 @@
 import os
-import PyPDF2
-import docx
+import shutil
+import send2trash
+from concurrent.futures import ThreadPoolExecutor
 
 class FileOps:
-    @staticmethod
-    def read_file(file_path):
-        """Reads content from TXT, PDF, or DOCX files."""
-        print(f"   [Analyst] Reading: {file_path}")
-        
-        # Handle relative paths (e.g., "notes.txt" -> "D:\jarvis 2.0\notes.txt")
-        if not os.path.isabs(file_path):
-            file_path = os.path.abspath(file_path)
+    clipboard_path = None
+    clipboard_action = None 
 
-        if not os.path.exists(file_path):
-            return f"Error: File not found at {file_path}"
-            
-        try:
-            ext = file_path.split('.')[-1].lower()
-            
-            if ext in ['txt', 'py', 'md', 'json', 'csv']:
-                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    return f.read()[:10000] # Limit to 10k chars to save token costs
-                    
-            elif ext == 'pdf':
-                text = ""
-                with open(file_path, 'rb') as f:
-                    reader = PyPDF2.PdfReader(f)
-                    # Read first 10 pages max
-                    for i, page in enumerate(reader.pages):
-                        if i > 10: break
-                        text += page.extract_text() + "\n"
-                return text
-                
-            elif ext == 'docx':
-                doc = docx.Document(file_path)
-                text = "\n".join([para.text for para in doc.paragraphs])
-                return text
-                
-            else:
-                return "Error: Unsupported file format. I can read .txt, .pdf, .docx, .py"
-                
-        except Exception as e:
-            return f"Read Error: {e}"
+    USER_PATH = os.path.expanduser("~") 
+    
+    # 🛡️ WRITE WHITELIST
+    SAFE_WRITE_PATHS = [
+        USER_PATH.lower(),
+        "d:\\",
+        "e:\\"
+    ]
 
     @staticmethod
-    def create_file(file_name, content):
-        """Creates a text file with the given content."""
-        print(f"   [Analyst] Writing File: {file_name}")
-        try:
-            # Default to Desktop if no path given
-            if "\\" not in file_name and "/" not in file_name:
-                desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-                file_path = os.path.join(desktop, file_name)
-            else:
-                file_path = file_name
-                
-            with open(file_path, 'w', encoding='utf-8') as f:
-                f.write(content)
-            return f"Success: File created at {file_path}"
-        except Exception as e:
-            return f"Write Error: {e}"
-            
+    def _is_safe_to_write(path):
+        path = os.path.abspath(path).lower()
+        is_safe = any(path.startswith(safe) for safe in FileOps.SAFE_WRITE_PATHS)
+        if "c:\\windows" in path or "c:\\program files" in path: return False
+        return is_safe
+
     @staticmethod
-    def list_files(directory):
-        """Lists files in a specific directory."""
-        print(f"   [Analyst] Scanning: {directory}")
+    def find_file(filename):
+        print(f"   [Analyst] Searching for: {filename}...")
         
-        # Smart Shortcuts
-        if "download" in directory.lower():
-            directory = os.path.join(os.path.expanduser("~"), "Downloads")
-        elif "desktop" in directory.lower():
-            directory = os.path.join(os.path.expanduser("~"), "Desktop")
-        elif "document" in directory.lower():
-            directory = os.path.join(os.path.expanduser("~"), "Documents")
+        search_roots = [
+            os.path.join(FileOps.USER_PATH, "Desktop"),
+            os.path.join(FileOps.USER_PATH, "Downloads"),
+            os.path.join(FileOps.USER_PATH, "Documents"),
+            "D:\\",
+            "E:\\"
+        ]
+        
+        if filename.endswith(".exe"):
+            search_roots.append(r"C:\Program Files")
+            search_roots.append(r"C:\Program Files (x86)")
+            search_roots.append(r"C:\Riot Games") # <--- ADDED FOR VALORANT
+        
+        def scan_root(root):
+            try:
+                for dirpath, _, filenames in os.walk(root):
+                    if "windows" in dirpath.lower() or "$recycle" in dirpath.lower(): continue
+                    if filename.lower() in [f.lower() for f in filenames]:
+                        return os.path.join(dirpath, filename)
+            except: pass
+            return None
+
+        with ThreadPoolExecutor() as executor:
+            results = executor.map(scan_root, search_roots)
             
-        if not os.path.exists(directory):
-             return f"Error: Directory {directory} not found."
-             
+        for res in results:
+            if res: return res
+
+        return None
+
+    # --- NEW TOOL ---
+    @staticmethod
+    def locate_file(filename):
+        """Finds a file and returns its path (without reading content)."""
+        path = FileOps.find_file(filename)
+        if path:
+            return f"Found it: {path}"
+        return f"Could not locate '{filename}' in standard folders."
+
+    # ... (Keep read_file, copy_file, cut_file, paste_file, delete_file exactly as before) ...
+    # PASTE THE REST OF THE PREVIOUS file_ops.py CODE HERE (methods read_file down to delete_file)
+    # If you want me to paste the full file again to be safe, let me know!
+    
+    @staticmethod
+    def read_file(file_name):
+        path = FileOps.find_file(file_name) if not os.path.exists(file_name) else file_name
+        if not path or not os.path.exists(path): return f"Error: Could not find '{file_name}'."
         try:
-            files = os.listdir(directory)
-            # Filter for readable files to keep list clean
-            readable = [f for f in files if not f.startswith('.')]
-            return "Files found:\n" + "\n".join(readable[:20]) # Limit to 20
-        except Exception as e:
-            return f"Scan Error: {e}"
+            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                return f"--- Content of {os.path.basename(path)} ---\n" + f.read()[:5000]
+        except Exception as e: return f"Read Error: {e}"
+
+    @staticmethod
+    def copy_file(file_name):
+        path = FileOps.find_file(file_name) if not os.path.exists(file_name) else file_name
+        if path and os.path.exists(path):
+            FileOps.clipboard_path = path
+            FileOps.clipboard_action = 'copy'
+            return f"Copied '{os.path.basename(path)}' to clipboard."
+        return "File not found."
+
+    @staticmethod
+    def cut_file(file_name):
+        path = FileOps.find_file(file_name) if not os.path.exists(file_name) else file_name
+        if path and os.path.exists(path):
+            if not FileOps._is_safe_to_write(path): return f"Safety Alert: Cannot cut from {path}."
+            FileOps.clipboard_path = path
+            FileOps.clipboard_action = 'cut'
+            return f"Cut '{os.path.basename(path)}'."
+        return "File not found."
+
+    @staticmethod
+    def paste_file(folder_path):
+        if not FileOps.clipboard_path: return "Clipboard is empty."
+        if "desktop" in folder_path.lower(): target_dir = os.path.join(FileOps.USER_PATH, "Desktop")
+        elif "downloads" in folder_path.lower(): target_dir = os.path.join(FileOps.USER_PATH, "Downloads")
+        elif "documents" in folder_path.lower(): target_dir = os.path.join(FileOps.USER_PATH, "Documents")
+        else: target_dir = folder_path
+
+        if not FileOps._is_safe_to_write(target_dir): return f"Safety Alert: Cannot paste into {target_dir}."
+        if not os.path.exists(target_dir): return f"Error: Directory '{target_dir}' not found."
+
+        try:
+            filename = os.path.basename(FileOps.clipboard_path)
+            destination = os.path.join(target_dir, filename)
+            if FileOps.clipboard_action == 'copy': shutil.copy2(FileOps.clipboard_path, destination)
+            elif FileOps.clipboard_action == 'cut': 
+                shutil.move(FileOps.clipboard_path, destination)
+                FileOps.clipboard_path = None
+            return f"Success: Pasted '{filename}' to {target_dir}"
+        except Exception as e: return f"Paste Error: {e}"
+
+    @staticmethod
+    def delete_file(file_name):
+        path = FileOps.find_file(file_name) if not os.path.exists(file_name) else file_name
+        if not path or not os.path.exists(path): return "File not found."
+        if not FileOps._is_safe_to_write(path): return f"Safety Alert: Cannot delete system files in {path}."
+        try:
+            send2trash.send2trash(path)
+            return f"Moved '{os.path.basename(path)}' to Recycle Bin."
+        except Exception as e: return f"Delete Error: {e}"

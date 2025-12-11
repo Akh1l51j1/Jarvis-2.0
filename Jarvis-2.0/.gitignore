@@ -8,9 +8,3 @@ config.py
 # Ignore compiled files
 *.pyc
 *.DS_Store
-
-engine/*.onnx
-engine/*.bin
-engine/*.jit
-__pycache__/
-*.pyc
