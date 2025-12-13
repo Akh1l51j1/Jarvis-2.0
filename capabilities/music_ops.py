@@ -3,6 +3,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from spotipy.exceptions import SpotifyException
 import sys
 import os
+import time
 import pyautogui
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -32,9 +33,9 @@ class MusicOps:
         except Exception:
             return False
 
-    # THE FIX: song_name=None makes the argument optional
     def play_music(self, song_name=None):
-        # If no song is provided (User just said "Play"), treat it as RESUME
+        """Hybrid Play: Tries Premium API -> Tries Auto-Wake -> Falls back to Deep Link"""
+        # 1. Handle Resume (User said "Play" with no song)
         if song_name is None:
             return self.resume_music()
             
@@ -50,17 +51,36 @@ class MusicOps:
                 track_name = track['name']
                 artist = track['artists'][0]['name']
                 
+                # --- STRATEGY 1: DIRECT API CONTROL (Premium) ---
                 try:
                     self.sp.start_playback(uris=[track_uri])
                     return f"Playing {track_name} by {artist}."
+                
                 except SpotifyException as e:
-                    # FREE TIER FALLBACK
-                    if "PREMIUM_REQUIRED" in str(e) or "403" in str(e):
+                    # --- STRATEGY 2: AUTO-WAKE (If device is missing) ---
+                    if "NO_ACTIVE_DEVICE" in str(e):
+                        print("   [Spotify] App is asleep. Waking it up...")
+                        
+                        # Open Spotify App on Windows
+                        os.system("start spotify") 
+                        time.sleep(4) # Wait for it to load
+                        
+                        try:
+                            # Retry Play Command
+                            self.sp.start_playback(uris=[track_uri])
+                            return f"I've opened Spotify and started {track_name}."
+                        except:
+                            # If retry fails, use Deep Link
+                            print("   [Spotify] Wake failed. Using Deep Link.")
+                            os.system(f"start {track_uri}")
+                            return f"Opening {track_name} by {artist}."
+
+                    # --- STRATEGY 3: FREE TIER FALLBACK ---
+                    elif "PREMIUM_REQUIRED" in str(e) or "403" in str(e):
                         print("   [Spotify] Premium not detected. Using Deep Link.")
                         os.system(f"start {track_uri}")
                         return f"Opening {track_name} by {artist} on Desktop."
-                    elif "NO_ACTIVE_DEVICE" in str(e):
-                        return "Please open Spotify first."
+                    
                     else:
                         return f"Spotify Error: {e}"
             else:
@@ -69,22 +89,18 @@ class MusicOps:
             return f"Error searching for song: {e}"
 
     def pause_music(self):
-        if not self.is_playing():
-            return "Music is already paused."
-
         try:
             if self.sp: self.sp.pause_playback()
-        except SpotifyException:
+        except:
+            # Fallback to Keyboard Media Keys
             pyautogui.press("playpause")
         return "Music paused."
 
     def resume_music(self):
-        if self.is_playing():
-            return "Music is already playing."
-
         try:
             if self.sp: self.sp.start_playback()
-        except SpotifyException:
+        except:
+            # Fallback to Keyboard Media Keys
             pyautogui.press("playpause")
         return "Music resumed."
 

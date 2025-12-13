@@ -6,22 +6,34 @@ from engine.speaker import Speaker
 from core.llm import Brain
 import config
 from capabilities.music_ops import music_engine 
+from server_bridge import bridge # <--- 1. IMPORT BRIDGE
 
 # SETTINGS
 CONVERSATION_TIMEOUT = 15 
 
 def startup_sequence(mouth, brain):
+    bridge.update_status("BOOTING", "Systems Initializing...") # <--- 2. UI STATUS
     print("\n>> INITIALIZING SYSTEMS...")
     mouth.play_sound("startup")
     time.sleep(0.5)
     greeting = brain.get_greeting()
     print(f"JARVIS: {greeting}")
+    
+    bridge.update_status("SPEAKING", "Online") # <--- 3. UI STATUS
+    bridge.log(f"JARVIS: {greeting}")          # <--- 4. UI LOG
     mouth.speak(greeting)
 
 def main():
     print("\n>> STARTING JARVIS 2.0")
     print("------------------------")
     
+    # --- ADD THIS BLOCK HERE ---
+    try:
+        bridge.start()
+    except Exception as e:
+        print(f"Bridge Error: {e}")
+    # ---------------------------
+
     try:
         ear = AudioListener()
         mouth = Speaker()
@@ -39,9 +51,11 @@ def main():
         try:
             # --- STATUS DISPLAY ---
             if conversation_mode:
+                bridge.update_status("LISTENING", "Active Mode") # <--- 5. UI UPDATE
                 remaining = int(CONVERSATION_TIMEOUT - (time.time() - last_active_time))
                 print(f"\n>> Active Mode (Timeout in {remaining}s)...")
             else:
+                bridge.update_status("IDLE", "Waiting for Wake Word...") # <--- 6. UI UPDATE
                 print("\n>> Waiting for Wake Word...")
 
             # --- LISTEN ---
@@ -79,6 +93,8 @@ def main():
             
             if should_process:
                 print(f"USER: {user_text}")
+                bridge.log(f"USER: {user_text}") # <--- 7. UI LOG
+
                 if is_wake_word: mouth.play_sound("listen")
 
                 # Auto-Duck (Pause Music while listening/thinking)
@@ -108,8 +124,13 @@ def main():
 
                 # --- BRAIN EXECUTION ---
                 if len(command) > 2:
+                    bridge.update_status("PROCESSING", "Thinking...") # <--- 8. UI THINKING
                     response = brain.think(command)
                     print(f"JARVIS: {response}")
+                    
+                    bridge.log(f"JARVIS: {response}") # <--- 9. UI LOG
+                    bridge.update_status("SPEAKING", "Replying...") # <--- 10. UI SPEAKING
+                    
                     mouth.speak(response)
                     last_active_time = time.time() 
                     
