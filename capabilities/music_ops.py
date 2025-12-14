@@ -5,6 +5,8 @@ import sys
 import os
 import time
 import pyautogui
+# 1. Import Fuzzy Matcher
+from difflib import SequenceMatcher
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
@@ -25,17 +27,18 @@ class MusicOps:
             self.sp = None
 
     def is_playing(self):
-        """Checks if Spotify is currently playing music."""
         if not self.sp: return False
         try:
             current = self.sp.current_playback()
             return current is not None and current.get('is_playing', False)
-        except Exception:
+        except:
             return False
 
+    # Helper: Check similarity between two strings (0.0 to 1.0)
+    def _similarity(self, a, b):
+        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
     def play_music(self, song_name=None):
-        """Hybrid Play: Tries Premium API -> Tries Auto-Wake -> Falls back to Deep Link"""
-        # 1. Handle Resume (User said "Play" with no song)
         if song_name is None:
             return self.resume_music()
             
@@ -43,66 +46,82 @@ class MusicOps:
         
         try:
             print(f"   [Spotify] Searching for: {song_name}")
-            results = self.sp.search(q=song_name, limit=1, type='track')
             
-            if results['tracks']['items']:
-                track = results['tracks']['items'][0]
-                track_uri = track['uri']
-                track_name = track['name']
-                artist = track['artists'][0]['name']
-                
-                # --- STRATEGY 1: DIRECT API CONTROL (Premium) ---
-                try:
-                    self.sp.start_playback(uris=[track_uri])
-                    return f"Playing {track_name} by {artist}."
-                
-                except SpotifyException as e:
-                    # --- STRATEGY 2: AUTO-WAKE (If device is missing) ---
-                    if "NO_ACTIVE_DEVICE" in str(e):
-                        print("   [Spotify] App is asleep. Waking it up...")
-                        
-                        # Open Spotify App on Windows
-                        os.system("start spotify") 
-                        time.sleep(4) # Wait for it to load
-                        
-                        try:
-                            # Retry Play Command
-                            self.sp.start_playback(uris=[track_uri])
-                            return f"I've opened Spotify and started {track_name}."
-                        except:
-                            # If retry fails, use Deep Link
-                            print("   [Spotify] Wake failed. Using Deep Link.")
-                            os.system(f"start {track_uri}")
-                            return f"Opening {track_name} by {artist}."
+            # 2. Get 5 results to find the best match
+            results = self.sp.search(q=song_name, limit=5, type='track')
+            items = results['tracks']['items']
+            
+            if not items:
+                return f"I couldn't find {song_name} on Spotify."
 
-                    # --- STRATEGY 3: FREE TIER FALLBACK ---
-                    elif "PREMIUM_REQUIRED" in str(e) or "403" in str(e):
-                        print("   [Spotify] Premium not detected. Using Deep Link.")
-                        os.system(f"start {track_uri}")
-                        return f"Opening {track_name} by {artist} on Desktop."
+            # 3. SMART FILTERING (The Fix)
+            # Look for a result that actually contains words from the request
+            best_track = items[0] # Default to first
+            
+            for item in items:
+                track_title = item['name']
+                artist_name = item['artists'][0]['name']
+                full_str = f"{track_title} {artist_name}"
+                
+                # If the result matches the query significantly better, switch to it
+                # or if the query words are literally IN the result name
+                query_parts = song_name.lower().split()
+                matches = sum(1 for part in query_parts if part in full_str.lower())
+                
+                if matches >= len(query_parts) - 1: # Allow 1 missing word
+                    best_track = item
+                    break
+
+            track_uri = best_track['uri']
+            track_name = best_track['name']
+            artist = best_track['artists'][0]['name']
+            
+            print(f"   [Spotify] Selected: {track_name} by {artist}")
+            
+            try:
+                # Try Premium API
+                self.sp.start_playback(uris=[track_uri])
+                return f"Playing {track_name} by {artist}."
+            
+            except SpotifyException as e:
+                # Auto-Wake Logic
+                if "NO_ACTIVE_DEVICE" in str(e):
+                    print("   [Spotify] Device not found. Launching App...")
                     
-                    else:
-                        return f"Spotify Error: {e}"
-            else:
-                return f"I couldn't find {song_name}."
+                    # FORCE OPEN TO SPECIFIC SONG (Prevents "One Dance" resume error)
+                    os.system(f"start {track_uri}") 
+                    time.sleep(8) 
+                    
+                    try:
+                        self.sp.start_playback(uris=[track_uri])
+                    except:
+                        pyautogui.press("space")
+                        
+                    return f"Opening Spotify for {track_name}."
+                
+                elif "PREMIUM_REQUIRED" in str(e):
+                    print("   [Spotify] Free Tier detected. Using Deep Link.")
+                    os.system(f"start {track_uri}")
+                    return f"Opening {track_name}."
+                
+                else:
+                    return f"Spotify Error: {e}"
+
         except Exception as e:
-            return f"Error searching for song: {e}"
+            return f"Search Error: {e}"
 
     def pause_music(self):
         try:
             if self.sp: self.sp.pause_playback()
         except:
-            # Fallback to Keyboard Media Keys
-            pyautogui.press("playpause")
-        return "Music paused."
+            pass 
+        return "Paused."
 
     def resume_music(self):
         try:
             if self.sp: self.sp.start_playback()
         except:
-            # Fallback to Keyboard Media Keys
-            pyautogui.press("playpause")
-        return "Music resumed."
+            pyautogui.press("playpause") 
+        return "Resumed."
 
-# Create instance
 music_engine = MusicOps()

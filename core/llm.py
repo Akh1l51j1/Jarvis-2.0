@@ -111,12 +111,18 @@ class Brain:
             if recurse:
                 print(f"   [Brain Logic] Digesting info from {tool_used}...")
                 
-                follow_up_prompt = (
-                    f"SYSTEM_OUTPUT: The tool '{tool_used}' returned this data:\n"
-                    f"{output_or_speech}\n\n"
+                follow_up_prompt = (\
+                    f"SYSTEM_OUTPUT: The tool '{tool_used}' returned this data:\\n"\
+                    f"{output_or_speech}\\n\\n"\
                     f"INSTRUCTION: Answer the user's question based on this data. "
-                    f"Do NOT say 'The tool returned' or list other unrelated memories. "
-                    f"Do NOT mention dates unless asked. Just give the specific answer."
+                    # VVVVVVVV FIX STARTS HERE VVVVVVVV
+                    + (
+                        f"If the tool was 'play_music' and it failed to find the song, ask the user to confirm the song name or artist."
+                        if tool_used == 'play_music' else
+                        f"Do NOT say 'The tool returned' or list other unrelated memories. "
+                    )
+                    + f"Do NOT mention dates unless asked. Just give the specific answer."
+                    
                 )
                 self.history.append({"role": "system", "content": follow_up_prompt})
                 
