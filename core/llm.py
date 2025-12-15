@@ -108,7 +108,7 @@ class Brain:
                 # --- DATA INJECTION ---
                 # We feed the REAL tool output back to the brain so it stops hallucinating
                 follow_up_prompt = (
-                    f"TOOL_OUTPUT: {output_or_speech}\n\n"
+                    f"DATA: {output_or_speech}\n\n"
                     f"INSTRUCTION: Report this EXACT result to the user. "
                     f"Do NOT invent file paths. Use the paths provided above."
                 )
