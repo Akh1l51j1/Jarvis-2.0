@@ -23,7 +23,6 @@ class FileOps:
         if "downloads" in clean: return os.path.join(FileOps.USER_PATH, "Downloads")
         if "documents" in clean: return os.path.join(FileOps.USER_PATH, "Documents")
         
-        # Handle "Drive D", "Volume E"
         if "volume" in clean or "drive" in clean:
             for word in clean.split():
                 if len(word) == 1 and word.isalpha(): return f"{word.upper()}:\\"
@@ -32,8 +31,14 @@ class FileOps:
         return path_str
 
     @staticmethod
-    def find_file(filename):
-        print(f"   [Analyst] Searching for: {filename}...")
+    def find_all_files(filename):
+        """Returns A LIST of all matching files."""
+        print(f"   [Analyst] Scanning ALL drives for: {filename}...")
+        
+        # 1. If user gave a full path, just verify it exists
+        if os.path.isabs(filename) and os.path.exists(filename):
+            return [filename]
+
         clean_name = filename.lower().replace(".exe", "")
         
         roots = [
@@ -46,67 +51,123 @@ class FileOps:
         if appdata: roots.append(os.path.join(appdata, "Spotify"))
         roots += [r"C:\Program Files", r"C:\Program Files (x86)"]
 
+        found_files = []
+
         def scan(root):
+            local_matches = []
             try:
-                if not os.path.exists(root): return None
+                if not os.path.exists(root): return []
                 for dirpath, dirnames, filenames in os.walk(root):
+                    # Skip junk
                     if "windows" in dirpath.lower() or "$recycle" in dirpath.lower(): continue
                     
+                    # 1. Exact File
                     for f in filenames:
-                        if f.lower() == filename.lower(): return os.path.join(dirpath, f)
+                        if f.lower() == filename.lower():
+                            local_matches.append(os.path.join(dirpath, f))
+                    
+                    # 2. Exact Folder
                     for d in dirnames:
-                        if d.lower() == filename.lower(): return os.path.join(dirpath, d)
-                    for f in filenames:
-                        if SequenceMatcher(None, clean_name, f.lower()).ratio() > 0.85:
-                            return os.path.join(dirpath, f)
+                        if d.lower() == filename.lower():
+                            local_matches.append(os.path.join(dirpath, d))
+                            
+                    # 3. Fuzzy Match (Only if exact match not found yet in this folder)
+                    if not local_matches:
+                        for f in filenames:
+                            if SequenceMatcher(None, clean_name, f.lower()).ratio() > 0.85:
+                                local_matches.append(os.path.join(dirpath, f))
             except: pass
-            return None
+            return local_matches
 
+        # Parallel Scan
         with ThreadPoolExecutor() as ex:
             results = ex.map(scan, roots)
-        for r in results: 
-            if r: return r
-        return None
+            
+        for r in results:
+            found_files.extend(r)
+            
+        # Remove duplicates
+        return list(set(found_files))
 
     # --- TOOLS ---
 
     @staticmethod
-    def move_file(args):
-        """Moves a file/folder to a destination. Arg: filename|destination"""
-        try:
-            if "|" not in args: return "Error: Use format 'filename|destination'"
-            file_name, dest_name = args.split("|", 1)
-            
-            # 1. Find Source
-            src_path = FileOps.find_file(file_name.strip())
-            if not src_path: return f"Error: Could not find '{file_name}'."
-            
-            # 2. Resolve Destination
-            dest_dir = FileOps._resolve_path(dest_name.strip())
-            if not os.path.exists(dest_dir): return f"Error: Destination '{dest_dir}' does not exist."
-            
-            # 3. Security Check
-            if not FileOps._is_safe_to_write(src_path) or not FileOps._is_safe_to_write(dest_dir):
-                return "Safety Alert: Access Denied to system paths."
+    def locate_file(filename):
+        matches = FileOps.find_all_files(filename)
+        
+        if not matches:
+            return f"Could not locate '{filename}'."
+        
+        if len(matches) == 1:
+            return matches[0]
+        
+        # DUPLICATE HANDLING
+        response = f"I found {len(matches)} matches. Please specify which one:\n"
+        for i, match in enumerate(matches, 1):
+            response += f"{i}. {match}\n"
+        return response
 
-            # 4. Move
+    @staticmethod
+    def delete_file(filename):
+        matches = FileOps.find_all_files(filename)
+        
+        if not matches: return "File not found."
+        
+        if len(matches) > 1:
+            # If duplicates, ask user to be specific
+            response = f"Found {len(matches)} files named '{filename}'. Which one should I delete?\n"
+            for m in matches: response += f"- {m}\n"
+            return response
+
+        # Exact match found
+        target = matches[0]
+        if not FileOps._is_safe_to_write(target): return f"Safety Alert: Cannot delete {target}"
+        
+        try:
+            send2trash.send2trash(target)
+            return f"Deleted '{os.path.basename(target)}' from {os.path.dirname(target)}."
+        except Exception as e: return f"Error: {e}"
+
+    @staticmethod
+    def move_file(args):
+        # Format: filename|destination
+        if "|" not in args: return "Error: Use format 'filename|destination'"
+        file_name, dest_name = args.split("|", 1)
+        
+        # Check Source
+        matches = FileOps.find_all_files(file_name.strip())
+        if not matches: return f"Error: Could not find '{file_name}'."
+        
+        if len(matches) > 1:
+            response = f"Found multiple files named '{file_name}'. Please specify source:\n"
+            for m in matches: response += f"- {m}\n"
+            return response
+            
+        src_path = matches[0]
+        
+        # Check Destination
+        dest_dir = FileOps._resolve_path(dest_name.strip())
+        if not os.path.exists(dest_dir): return f"Error: Destination '{dest_dir}' does not exist."
+        
+        if not FileOps._is_safe_to_write(src_path): return "Safety Alert: Access Denied."
+
+        try:
             filename = os.path.basename(src_path)
             final_path = os.path.join(dest_dir, filename)
             shutil.move(src_path, final_path)
-            
             return f"Success: Moved '{filename}' to '{dest_dir}'."
-            
         except Exception as e: return f"Move Error: {e}"
 
+    # --- (KEEP THESE STANDARD) ---
     @staticmethod
     def create_file(file_info):
         clean_info = file_info.replace("/", "\\")
         if clean_info.lower().startswith("desktop\\"): clean_info = clean_info[8:] 
-
+        
         if ":" in clean_info: target_path = clean_info
         else: target_path = os.path.join(FileOps.USER_PATH, "Desktop", clean_info)
 
-        if not FileOps._is_safe_to_write(target_path): return "Safety Alert: Access Denied."
+        if not FileOps._is_safe_to_write(target_path): return "Safety Alert."
         
         try:
             folder = os.path.dirname(target_path)
@@ -114,24 +175,9 @@ class FileOps:
             
             if not os.path.exists(target_path):
                 with open(target_path, 'w') as f: f.write("")
-                return f"Success: Created '{os.path.basename(target_path)}' in '{folder}'."
-            else:
-                return f"File '{os.path.basename(target_path)}' already exists."
+                return f"Success: Created '{os.path.basename(target_path)}'."
+            else: return f"File '{os.path.basename(target_path)}' already exists."
         except Exception as e: return f"Error: {e}"
-
-    @staticmethod
-    def write_to_file(args):
-        try:
-            if "|" not in args: return "Error: Use format 'filename|content'"
-            filename, content = args.split("|", 1)
-            path = FileOps.find_file(filename.strip())
-            if not path: path = os.path.join(FileOps.USER_PATH, "Desktop", filename.strip())
-
-            if not FileOps._is_safe_to_write(path): return "Safety Alert: Access Denied."
-
-            with open(path, 'w', encoding='utf-8') as f: f.write(content)
-            return f"Success: Wrote to '{os.path.basename(path)}'."
-        except Exception as e: return f"Write Error: {e}"
 
     @staticmethod
     def create_folder(folder_name):
@@ -144,62 +190,40 @@ class FileOps:
         except Exception as e: return f"Error: {e}"
 
     @staticmethod
-    def locate_file(filename):
-        path = FileOps.find_file(filename)
-        return path if path else f"Could not locate '{filename}'."
+    def write_to_file(args):
+        if "|" not in args: return "Error: Use format 'filename|content'"
+        filename, content = args.split("|", 1)
+        
+        matches = FileOps.find_all_files(filename.strip())
+        if not matches: 
+            # Create on Desktop if not found
+            path = os.path.join(FileOps.USER_PATH, "Desktop", filename.strip())
+        elif len(matches) > 1:
+            return f"Found {len(matches)} files. Please specify path."
+        else:
+            path = matches[0]
+
+        if not FileOps._is_safe_to_write(path): return "Safety Alert."
+        try:
+            with open(path, 'w', encoding='utf-8') as f: f.write(content)
+            return f"Success: Wrote to '{os.path.basename(path)}'."
+        except Exception as e: return f"Write Error: {e}"
 
     @staticmethod
     def read_file(file_name):
-        path = FileOps.find_file(file_name)
-        if not path: return "File not found."
+        matches = FileOps.find_all_files(file_name)
+        if not matches: return "File not found."
+        if len(matches) > 1: return f"Multiple files found for '{file_name}'. Be specific."
+        
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f"--- {os.path.basename(path)} ---\n" + f.read()[:5000]
+            with open(matches[0], 'r', encoding='utf-8', errors='ignore') as f:
+                return f"--- {os.path.basename(matches[0])} ---\n" + f.read()[:5000]
         except Exception as e: return f"Read Error: {e}"
 
+    # Legacy placeholders
     @staticmethod
-    def delete_file(file_name):
-        path = FileOps.find_file(file_name)
-        if path:
-            try:
-                send2trash.send2trash(path)
-                return f"Deleted '{os.path.basename(path)}'."
-            except Exception as e: return f"Error: {e}"
-        return "File not found."
-
-    # Keep these for compatibility, but 'move_file' is better
+    def copy_file(a): pass
     @staticmethod
-    def copy_file(file_name):
-        path = FileOps.find_file(file_name)
-        if path:
-            FileOps.clipboard_path = path
-            FileOps.clipboard_action = 'copy'
-            return f"Copied '{os.path.basename(path)}'."
-        return "File not found."
-
+    def cut_file(a): pass
     @staticmethod
-    def cut_file(file_name):
-        path = FileOps.find_file(file_name)
-        if path:
-            if not FileOps._is_safe_to_write(path): return "Safety Alert."
-            FileOps.clipboard_path = path
-            FileOps.clipboard_action = 'cut'
-            return f"Cut '{os.path.basename(path)}'."
-        return "File not found."
-
-    @staticmethod
-    def paste_file(destination):
-        if not FileOps.clipboard_path: return "Clipboard empty."
-        target_dir = FileOps._resolve_path(destination)
-        if not os.path.exists(target_dir): return f"Error: '{target_dir}' not found."
-        try:
-            filename = os.path.basename(FileOps.clipboard_path)
-            final_path = os.path.join(target_dir, filename)
-            if FileOps.clipboard_action == 'copy': 
-                if os.path.isdir(FileOps.clipboard_path): shutil.copytree(FileOps.clipboard_path, final_path)
-                else: shutil.copy2(FileOps.clipboard_path, final_path)
-            elif FileOps.clipboard_action == 'cut': 
-                shutil.move(FileOps.clipboard_path, final_path)
-                FileOps.clipboard_path = None
-            return f"Pasted to {target_dir}"
-        except Exception as e: return f"Paste Error: {e}"
+    def paste_file(a): pass
