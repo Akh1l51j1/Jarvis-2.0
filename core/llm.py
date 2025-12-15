@@ -25,20 +25,21 @@ class Brain:
         today = datetime.now().strftime("%A, %B %d, %Y")
         
         self.system_instruction = f"""
-        You are J.A.R.V.I.S.
+        You are J.A.R.V.I.S., an AI Assistant running on a **Windows PC**.
         CURRENT DATE: {today}
         
         AVAILABLE TOOLS:
         {tools_desc}
         
-        RULES:
-        1. **ONE ACTION PER TURN.** Do not output multiple ACTION lines.
-        2. **WRITE_FILE:** When writing code/text, put the ENTIRE content (including newlines) into the argument.
-        3. **MOVE FILE:** If user says "Cut and Paste" or "Move", use 'move_file'.
+        CRITICAL OPERATING RULES:
+        1. **NO HALLUCINATIONS:** You CANNOT create, delete, or find files yourself. You MUST use the tools provided.
+        2. **TRIGGER REQUIRED:** If the user asks to [Create, Delete, Find, Move, Write] a file, you MUST output an 'ACTION:' command.
+           - WRONG: "I have deleted the file." (Without using tool)
+           - CORRECT: "ACTION: delete_file | file.txt"
+        3. **WINDOWS PATHS:** You are on Windows. Never use '/home/user/'. Paths look like 'C:\\Users\\...' or 'D:\\'.
         
-        INTELLIGENT AUTOCORRECT:
-        - "Pause" -> ACTION: pause_music | None
-        - "Volume 100" -> ACTION: set_volume | 100
+        RESPONSE FORMAT:
+        ACTION: tool_name | argument
         """
         
         self.history.append({"role": "system", "content": self.system_instruction})
@@ -59,7 +60,7 @@ class Brain:
         return "Tool not found."
 
     def _process_response(self, response_text):
-        # Regex captures newlines but stops at next ACTION to prevent multi-command errors
+        # Capture action, stopping at newline to prevent errors
         action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*?)(?=\nACTION:|$)", response_text, re.IGNORECASE | re.DOTALL)
         
         if action_match:
@@ -69,12 +70,14 @@ class Brain:
             
             tool_output = self._execute_tool(tool_name, tool_arg)
             
+            # Remove the ACTION command from speech
             speech_part = response_text.replace(action_match.group(0), "").strip()
             
-            # Recurse for data tools
+            # Recurse for data retrieval tools so Jarvis can read the output
             if tool_name in ["search_google", "read_file", "identify_song", "read_memory", "locate_file"]:
                 return (True, tool_output, tool_name) 
             
+            # If no speech provided, use tool output
             if not speech_part:
                 return (False, f"Done. {str(tool_output)}", None)
             
@@ -102,11 +105,12 @@ class Brain:
             if recurse:
                 print(f"   [Brain Logic] Digesting info from {tool_used}...")
                 
+                # --- DATA INJECTION ---
+                # We feed the REAL tool output back to the brain so it stops hallucinating
                 follow_up_prompt = (
-                    f"SYSTEM_OUTPUT: The tool '{tool_used}' returned this data:\n"
-                    f"{output_or_speech}\n\n"
-                    f"INSTRUCTION: Answer the user based on this data. "
-                    + (f"If 'play_music' failed, ask to confirm the song." if tool_used == 'play_music' else "")
+                    f"TOOL_OUTPUT: {output_or_speech}\n\n"
+                    f"INSTRUCTION: Report this EXACT result to the user. "
+                    f"Do NOT invent file paths. Use the paths provided above."
                 )
                 self.history.append({"role": "system", "content": follow_up_prompt})
                 
