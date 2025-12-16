@@ -31,23 +31,26 @@ class Brain:
         AVAILABLE TOOLS:
         {tools_desc}
         
-        CORE PERSONALITY:
-        1. **BE PROACTIVE:** Anticipate needs (e.g., "Shall I run the code?").
-        2. **BE INTERACTIVE:** Ask clarifying questions.
-        3. **BE CONCISE:** Do **NOT** read back code or long text you write. Just say "Code written" or "Content updated".
+        CORE PERSONALITY (THE "STARK" MODE):
+        1. **BE WITTY & OBSERVATIONAL:** - Success: "Target eliminated. File deleted."
+           - Failure: "I seem to be hitting a wall here. The file refuses to budge."
+        
+        2. **BE PROACTIVE:** - NEVER just say "Done" or "Ready". 
+           - ALWAYS ask a relevant follow-up Question. (e.g., "Folder created. Shall I open it?")
+        
+        3. **BE CONCISE:** Do **NOT** read back code or long text. Just say "Code written".
         
         CRITICAL OPERATING RULES:
         1. **NO HALLUCINATIONS:** Use tools for all actions.
         2. **SMART PATHS:** Do NOT guess 'C:\\Users\\<user>'. Use relative paths like 'Desktop/Folder'.
         3. **WRITE_FILE:** Put ENTIRE content (including newlines) into the argument.
+        4. **FOLLOW-THROUGH:** If the user selects a file (e.g., "The desktop one"), perform the ORIGINAL ACTION (Delete/Move).
         
-        RESPONSE FORMAT (STRICT):
-        [Optional Reasoning/Speech]
+        RESPONSE FORMAT:
+        [Wit/Commentary First]
         ACTION: tool_name | argument
         
-        IMPORTANT: ALWAYS put your speech **BEFORE** the ACTION command.
-        - WRONG: ACTION: ... \n Done.
-        - CORRECT: Done. \n ACTION: ...
+        (If no tool is needed, do NOT write ACTION: None. Just speak.)
         """
         
         self.history.append({"role": "system", "content": self.system_instruction})
@@ -68,12 +71,18 @@ class Brain:
         return "Tool not found."
 
     def _process_response(self, response_text):
-        # 1. SPECIAL CASE: write_file (Captures multi-line code)
-        action_match = re.search(r"ACTION:\s*(write_file)\s*\|\s*(.*?)(?=\nACTION:|$)", response_text, re.IGNORECASE | re.DOTALL)
+        # --- CLEANER: Remove "ACTION: None" and Reasoning ---
+        # This prevents the "Leaking" bug you just saw.
+        clean_text = response_text.replace("ACTION: None", "")
+        clean_text = re.sub(r"\(No further action.*?\)", "", clean_text, flags=re.IGNORECASE)
         
-        # 2. STANDARD CASE: Other tools (Stop at newline)
+        # 1. SPECIAL CASE: write_file (Captures multi-line code)
+        action_match = re.search(r"ACTION:\s*(write_file)\s*\|\s*(.*?)(?=\nACTION:|$)", clean_text, re.IGNORECASE | re.DOTALL)
+        
+        # 2. STANDARD CASE: Other tools (Flexible Regex: Handles missing pipe)
         if not action_match:
-            action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*)", response_text, re.IGNORECASE)
+            # Matches "ACTION: tool | arg" OR "ACTION: tool arg"
+            action_match = re.search(r"ACTION:\s*(\w+)(?:\s*\|\s*|\s+)(.*)", clean_text, re.IGNORECASE)
 
         if action_match:
             tool_name = action_match.group(1).strip()
@@ -82,19 +91,23 @@ class Brain:
             
             tool_output = self._execute_tool(tool_name, tool_arg)
             
-            # Remove the ACTION part. Since we enforced "Speech First", the speech remains at the top.
-            speech_part = response_text.replace(action_match.group(0), "").strip()
+            # Recursive check: force the brain to read the result of these tools
+            recursive_tools = [
+                "search_google", "read_file", "identify_song", "read_memory", "locate_file",
+                "create_file", "delete_file", "create_folder", "move_file", "write_file"
+            ]
             
-            # Recurse for data retrieval tools
-            if tool_name in ["search_google", "read_file", "identify_song", "read_memory", "locate_file"]:
+            if tool_name in recursive_tools:
                 return (True, tool_output, tool_name) 
             
+            # Remove the ACTION part for speech
+            speech_part = clean_text.replace(action_match.group(0), "").strip()
             if not speech_part:
                 return (False, f"Done. {str(tool_output)}", None)
             
             return (False, speech_part, None)
             
-        return (False, response_text, None)
+        return (False, clean_text, None)
 
     def think(self, user_input):
         self.history.append({"role": "user", "content": user_input})
@@ -109,18 +122,19 @@ class Brain:
                 max_tokens=800
             )
             response_text = completion.choices[0].message.content
-            self.history.append({"role": "assistant", "content": response_text})
-
+            
             recurse, output_or_speech, tool_used = self._process_response(response_text)
             
             if recurse:
                 print(f"   [Brain Logic] Digesting info from {tool_used}...")
                 
-                # --- PROACTIVE FOLLOW-UP ---
+                # --- PROACTIVE FOLLOW-UP (Strict Mode) ---
                 follow_up_prompt = (
-                    f"DATA: {output_or_speech}\n\n"
-                    f"INSTRUCTION: Report this result naturally. "
-                    f"Then, SUGGEST A RELEVANT NEXT STEP based on the data. "
+                    f"TOOL_OUTPUT: {output_or_speech}\n\n"
+                    f"INSTRUCTION: The action is complete. \n"
+                    f"1. REPORT the result naturally. \n"
+                    f"2. YOU MUST ASK A FOLLOW-UP QUESTION. (e.g. 'Shall I open it?', 'Want to create a file inside?').\n"
+                    f"   - Do NOT just say 'Ready for assignment'. Be specific."
                 )
                 self.history.append({"role": "system", "content": follow_up_prompt})
                 
@@ -134,6 +148,7 @@ class Brain:
                 _, final_speech, _ = self._process_response(final_response)
                 return final_speech
 
+            self.history.append({"role": "assistant", "content": response_text})
             return output_or_speech
 
         except Exception as e:
