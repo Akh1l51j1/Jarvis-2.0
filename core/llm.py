@@ -25,28 +25,36 @@ class Brain:
         today = datetime.now().strftime("%A, %B %d, %Y")
         
         self.system_instruction = f"""
-        You are J.A.R.V.I.S., an AI Assistant running on a **Windows PC**.
+        You are J.A.R.V.I.S., a highly advanced AI Assistant on a Windows PC.
         CURRENT DATE: {today}
         
         AVAILABLE TOOLS:
         {tools_desc}
         
-        CRITICAL OPERATING RULES:
-        1. **NO HALLUCINATIONS:** You CANNOT create, delete, or find files yourself. You MUST use the tools provided.
-        2. **TRIGGER REQUIRED:** If the user asks to [Create, Delete, Find, Move, Write] a file, you MUST output an 'ACTION:' command.
-           - WRONG: "I have deleted the file." (Without using tool)
-           - CORRECT: "ACTION: delete_file | file.txt"
-        3. **WINDOWS PATHS:** You are on Windows. Never use '/home/user/'. Paths look like 'C:\\Users\\...' or 'D:\\'.
+        CORE PERSONALITY:
+        1. **BE PROACTIVE:** Anticipate needs (e.g., "Shall I run the code?").
+        2. **BE INTERACTIVE:** Ask clarifying questions.
+        3. **BE CONCISE:** Do **NOT** read back code or long text you write. Just say "Code written" or "Content updated".
         
-        RESPONSE FORMAT:
+        CRITICAL OPERATING RULES:
+        1. **NO HALLUCINATIONS:** Use tools for all actions.
+        2. **SMART PATHS:** Do NOT guess 'C:\\Users\\<user>'. Use relative paths like 'Desktop/Folder'.
+        3. **WRITE_FILE:** Put ENTIRE content (including newlines) into the argument.
+        
+        RESPONSE FORMAT (STRICT):
+        [Optional Reasoning/Speech]
         ACTION: tool_name | argument
+        
+        IMPORTANT: ALWAYS put your speech **BEFORE** the ACTION command.
+        - WRONG: ACTION: ... \n Done.
+        - CORRECT: Done. \n ACTION: ...
         """
         
         self.history.append({"role": "system", "content": self.system_instruction})
         print("   ✅ Brain Connected (Groq Online).")
 
     def get_greeting(self):
-        return "Systems online, Sir."
+        return "Systems online, Sir. Ready to begin."
 
     def _execute_tool(self, tool_name, tool_arg):
         print(f"   [Brain Logic] Executing: {tool_name} -> {tool_arg}")
@@ -60,9 +68,13 @@ class Brain:
         return "Tool not found."
 
     def _process_response(self, response_text):
-        # Capture action, stopping at newline to prevent errors
-        action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*?)(?=\nACTION:|$)", response_text, re.IGNORECASE | re.DOTALL)
+        # 1. SPECIAL CASE: write_file (Captures multi-line code)
+        action_match = re.search(r"ACTION:\s*(write_file)\s*\|\s*(.*?)(?=\nACTION:|$)", response_text, re.IGNORECASE | re.DOTALL)
         
+        # 2. STANDARD CASE: Other tools (Stop at newline)
+        if not action_match:
+            action_match = re.search(r"ACTION:\s*(\w+)\s*\|\s*(.*)", response_text, re.IGNORECASE)
+
         if action_match:
             tool_name = action_match.group(1).strip()
             tool_arg = action_match.group(2).strip()
@@ -70,14 +82,13 @@ class Brain:
             
             tool_output = self._execute_tool(tool_name, tool_arg)
             
-            # Remove the ACTION command from speech
+            # Remove the ACTION part. Since we enforced "Speech First", the speech remains at the top.
             speech_part = response_text.replace(action_match.group(0), "").strip()
             
-            # Recurse for data retrieval tools so Jarvis can read the output
+            # Recurse for data retrieval tools
             if tool_name in ["search_google", "read_file", "identify_song", "read_memory", "locate_file"]:
                 return (True, tool_output, tool_name) 
             
-            # If no speech provided, use tool output
             if not speech_part:
                 return (False, f"Done. {str(tool_output)}", None)
             
@@ -105,12 +116,11 @@ class Brain:
             if recurse:
                 print(f"   [Brain Logic] Digesting info from {tool_used}...")
                 
-                # --- DATA INJECTION ---
-                # We feed the REAL tool output back to the brain so it stops hallucinating
+                # --- PROACTIVE FOLLOW-UP ---
                 follow_up_prompt = (
                     f"DATA: {output_or_speech}\n\n"
-                    f"INSTRUCTION: Report this EXACT result to the user. "
-                    f"Do NOT invent file paths. Use the paths provided above."
+                    f"INSTRUCTION: Report this result naturally. "
+                    f"Then, SUGGEST A RELEVANT NEXT STEP based on the data. "
                 )
                 self.history.append({"role": "system", "content": follow_up_prompt})
                 
