@@ -68,7 +68,10 @@ def main():
                     conversation_mode = False
                     continue
             
-            if not has_spoken: continue 
+            if not has_spoken: 
+                if not conversation_mode:
+                    last_active_time = time.time() # Keep it fresh
+                continue
 
             # --- 2. WAKE WORD CHECK ---
             is_wake_word = False
@@ -117,19 +120,15 @@ def main():
                     bridge.update_status("PROCESSING", "Thinking...")
                     response = brain.think(command)
                     
-                    print(f"JARVIS: {response}")
-                    bridge.log(f"JARVIS: {response}")
+                    # --- THE FIX: Only print if there is actually a response ---
+                    if response and response.strip():
+                        print(f"JARVIS: {response}")
+                        bridge.log(f"JARVIS: {response}")
+                        bridge.update_status("SPEAKING", "Replying...")
+                        mouth.speak(response)
                     
-                    bridge.update_status("SPEAKING", "Replying...")
-                    mouth.speak(response)
-                    
-                    # Update timer AFTER he speaks so you have full 15s to reply
                     last_active_time = time.time() 
-                    
-                    music_triggers = ["play", "song", "spotify", "music", "track"]
-                    if any(x in command for x in music_triggers) and "pause" not in command:
-                        print(">> Music detected. Exiting Active Mode.")
-                        conversation_mode = False 
+                       
                 else:
                     print("   (No command heard)")
 

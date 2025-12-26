@@ -48,37 +48,30 @@ class Speaker:
 
     def speak(self, text):
         if not self.kokoro: return
+        
+        # --- THE FIX: Split text by sentences ---
+        import re
+        sentences = re.split(r'(?<=[.!?]) +', text)
+        
+        for sentence in sentences:
+            clean_text = sentence.replace("*", "").replace("#", "").strip()
+            if not clean_text: continue
 
-        clean_text = text.replace("*", "").replace("#", "").strip()
-        if not clean_text: return
-
-        print(f">> Speaking: {clean_text}")
-
-        try:
-            samples, sample_rate = self.kokoro.create(
-                clean_text, 
-                voice=VOICE_NAME, 
-                speed=1.0, 
-                lang="en-us"
-            )
-
-            # --- SMART INTERRUPT PLAYBACK ---
-            sd.play(samples, sample_rate)
-            
-            # Calculate how long the audio is (in seconds)
-            duration = len(samples) / sample_rate
-            start_time = time.time()
-            
-            # Loop until audio finishes OR user presses ESC
-            while time.time() - start_time < duration:
-                if keyboard.is_pressed('esc'):
-                    print(">> 🛑 Speech Interrupted.")
-                    sd.stop() # Kill Audio
-                    break
-                time.sleep(0.05) # Check every 50ms
-            
-        except Exception as e:
-            print(f"   [Speaker Error] {e}")
+            print(f">> Speaking: {clean_text}")
+            try:
+                samples, sample_rate = self.kokoro.create(clean_text, voice=VOICE_NAME, speed=1.0, lang="en-us")
+                sd.play(samples, sample_rate)
+                
+                # Wait for CURRENT sentence to finish (or ESC)
+                duration = len(samples) / sample_rate
+                start_time = time.time()
+                while time.time() - start_time < duration:
+                    if keyboard.is_pressed('esc'):
+                        sd.stop()
+                        return # Exit the entire speech loop
+                    time.sleep(0.01)
+            except Exception as e:
+                print(f"   [Speaker Error] {e}")
 
 if __name__ == "__main__":
     bot = Speaker()

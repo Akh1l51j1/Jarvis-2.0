@@ -31,24 +31,32 @@ class Brain:
         AVAILABLE TOOLS:
         {tools_desc}
         
-        CORE PERSONALITY (THE "STARK" MODE):
-        1. **BE WITTY & OBSERVATIONAL:** - Success: "Target eliminated. File deleted."
-           - Failure: "I seem to be hitting a wall here. The file refuses to budge."
-        
-        2. **BE PROACTIVE:** - NEVER just say "Done" or "Ready". 
-           - ALWAYS ask a relevant follow-up Question. (e.g., "Folder created. Shall I open it?")
-        
-        3. **BE CONCISE:** Do **NOT** read back code or long text. Just say "Code written".
+        CORE PERSONALITY:
+        1. **STARK MODE:** Be sophisticated and witty, but NEVER explain your internal logic.
+        2. **NO COMMENTARY ON TOOLS:** Do NOT say things like "I'm executing the tool" or "Let me search that for you." Just perform the action.
+        3. **CONCISE WIT:** If an action is obvious (like pausing music), don't speak at all.
         
         CRITICAL OPERATING RULES:
         1. **NO HALLUCINATIONS:** Use tools for all actions.
         2. **SMART PATHS:** Do NOT guess 'C:\\Users\\<user>'. Use relative paths like 'Desktop/Folder'.
         3. **WRITE_FILE:** Put ENTIRE content (including newlines) into the argument.
         4. **FOLLOW-THROUGH:** If the user selects a file (e.g., "The desktop one"), perform the ORIGINAL ACTION (Delete/Move).
+        5. **FACT EXTRACTION:** When using 'search_google', NEVER read snippets. Extract the single specific answer (e.g., "It's 2:59 PM") and report it witty and briefly.
+        6. **MAX_LENGTH:** Keep responses under 2 sentences unless explaining a complex design task.
+
+        SILENT_MUSIC_RULE (CRITICAL):
+        - If the user asks for **MUSIC CONTROLS** (play_music, pause_music, resume_music), you must execute the ACTION and respond with NOTHING (an empty string).
+        - For **ALL OTHER ACTIONS** (open_app, close_app, set_volume, locate_file, etc.), you MUST provide a witty confirmation first.
         
+        TOOL ARGUMENT RULES (CRITICAL):
+        - **ARGUMENTS ONLY:** The 'argument' part of an ACTION must contain ONLY the data needed (e.g., "Song Name", "C:/Path/File.txt").
+        - **NO CONVERSATION IN ACTION:** Never include wit, questions, or commentary inside the ACTION line.
+        - **WIT FIRST:** Always put your conversational wit on the lines BEFORE the ACTION line.
+
         RESPONSE FORMAT:
         [Wit/Commentary First]
         ACTION: tool_name | argument
+        (Remember: Empty response if it is a music control action).
         
         (If no tool is needed, do NOT write ACTION: None. Just speak.)
         """
@@ -71,43 +79,34 @@ class Brain:
         return "Tool not found."
 
     def _process_response(self, response_text):
-        # --- CLEANER: Remove "ACTION: None" and Reasoning ---
-        # This prevents the "Leaking" bug you just saw.
-        clean_text = response_text.replace("ACTION: None", "")
-        clean_text = re.sub(r"\(No further action.*?\)", "", clean_text, flags=re.IGNORECASE)
-        
-        # 1. SPECIAL CASE: write_file (Captures multi-line code)
-        action_match = re.search(r"ACTION:\s*(write_file)\s*\|\s*(.*?)(?=\nACTION:|$)", clean_text, re.IGNORECASE | re.DOTALL)
-        
-        # 2. STANDARD CASE: Other tools (Flexible Regex: Handles missing pipe)
-        if not action_match:
-            # Matches "ACTION: tool | arg" OR "ACTION: tool arg"
-            action_match = re.search(r"ACTION:\s*(\w+)(?:\s*\|\s*|\s+)(.*)", clean_text, re.IGNORECASE)
+            # 1. First, extract the ACTION for the computer to run
+            action_match = re.search(r"ACTION:\s*(write_file)\s*\|\s*(.*?)(?=\nACTION:|$)", response_text, re.IGNORECASE | re.DOTALL)
+            if not action_match:
+                action_match = re.search(r"ACTION:\s*(\w+)(?:\s*\|\s*|\s+)([^\n]*)", response_text, re.IGNORECASE)
 
-        if action_match:
-            tool_name = action_match.group(1).strip()
-            tool_arg = action_match.group(2).strip()
-            if tool_arg.lower() == "none" or tool_arg == "": tool_arg = None
-            
-            tool_output = self._execute_tool(tool_name, tool_arg)
-            
-            # Recursive check: force the brain to read the result of these tools
-            recursive_tools = [
-                "search_google", "read_file", "identify_song", "read_memory", "locate_file",
-                "create_file", "delete_file", "create_folder", "move_file", "write_file"
-            ]
-            
+            tool_output = None
+            tool_name = None
+            if action_match:
+                tool_name = action_match.group(1).strip()
+                tool_arg = action_match.group(2).strip()
+                if tool_arg and (tool_arg.lower() == "none" or tool_arg == ""): tool_arg = None
+                tool_output = self._execute_tool(tool_name, tool_arg)
+
+            # 2. THE SPEECH FILTER: Strip ALL "ACTION:" lines from what is spoken
+            # This prevents him from ever saying the word "ACTION" out loud.
+            speech_part = re.sub(r"ACTION:.*", "", response_text, flags=re.IGNORECASE).strip()
+            speech_part = speech_part.replace("ACTION: None", "").strip()
+
+            # 3. Handle recursion or return speech
+            recursive_tools = ["search_google", "read_file", "identify_song", "read_memory", "locate_file", "write_file"]
             if tool_name in recursive_tools:
                 return (True, tool_output, tool_name) 
             
-            # Remove the ACTION part for speech
-            speech_part = clean_text.replace(action_match.group(0), "").strip()
-            if not speech_part:
+            # If he didn't write any wit, but did a tool, say "Done"
+            if not speech_part and tool_name:
                 return (False, f"Done. {str(tool_output)}", None)
-            
+                
             return (False, speech_part, None)
-            
-        return (False, clean_text, None)
 
     def think(self, user_input):
         self.history.append({"role": "user", "content": user_input})
@@ -131,10 +130,9 @@ class Brain:
                 # --- PROACTIVE FOLLOW-UP (Strict Mode) ---
                 follow_up_prompt = (
                     f"TOOL_OUTPUT: {output_or_speech}\n\n"
-                    f"INSTRUCTION: The action is complete. \n"
-                    f"1. REPORT the result naturally. \n"
-                    f"2. YOU MUST ASK A FOLLOW-UP QUESTION. (e.g. 'Shall I open it?', 'Want to create a file inside?').\n"
-                    f"   - Do NOT just say 'Ready for assignment'. Be specific."
+                    f"INSTRUCTION: The action is complete. Report the result naturally in your witty persona. "
+                    f"If there is a logical next step, you may ask a follow-up question. "
+                    f"If the task is finished and requires no further input, simply end the response."
                 )
                 self.history.append({"role": "system", "content": follow_up_prompt})
                 

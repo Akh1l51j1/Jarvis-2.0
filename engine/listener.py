@@ -3,12 +3,14 @@ import numpy as np
 import torch
 from faster_whisper import WhisperModel
 
-# --- CONFIGURATION ---
+# --- UNIVERSAL CONFIGURATION ---
 CHANNELS = 1
 RATE = 16000
-CHUNK = 512 # Critical for Silero VAD
-SILENCE_THRESHOLD = 0.8 
-VAD_SENSITIVITY = 0.5 
+CHUNK = 512 
+# Increased for natural pauses and better distant hearing
+SILENCE_THRESHOLD = 1.0 
+# Adjusted for your 6m mic setup
+VAD_SENSITIVITY = 0.4 
 
 class AudioListener:
     def __init__(self):
@@ -17,8 +19,10 @@ class AudioListener:
                                            model='silero_vad',
                                            trust_repo=True)
         
-        print(">> Loading Whisper Model...")
-        self.whisper = WhisperModel("base", device="cpu", compute_type="int8") 
+        # --- THE ACCURACY FIX: UPGRADE TO 'SMALL' ---
+        # 'small' is significantly better at Indian names/songs than 'base'
+        print(">> Loading Multilingual Whisper (Small)...")
+        self.whisper = WhisperModel("small", device="cpu", compute_type="int8") 
         
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paInt16,
@@ -33,6 +37,11 @@ class AudioListener:
         return confidence > VAD_SENSITIVITY
 
     def listen(self):
+        # --- THE STALE HEARING FIX: RESET BUFFER ---
+        # We stop/start the stream to flush 30+ mins of background noise
+        self.stream.stop_stream()
+        self.stream.start_stream()
+        
         print("\n>> Listening...")
         frames = []
         started = False
@@ -53,22 +62,25 @@ class AudioListener:
                 if silence_frames > (RATE / CHUNK * SILENCE_THRESHOLD):
                     break
 
+        if not frames: return ""
+
         audio_data = b''.join(frames)
         audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
         
-        # --- TRANSCRIBE WITH PROMPT FIX ---
+        # --- THE MULTILINGUAL FIX: AUTO-DETECT + HINGLISH PROMPT ---
         segments, _ = self.whisper.transcribe(
             audio_np, 
             beam_size=5,
-            language="en", 
+            language=None, # AUTO-DETECT allows Hindi/English mixed speech
             vad_filter=True, 
             vad_parameters=dict(min_silence_duration_ms=500),
-            initial_prompt="Jarvis, open Spotify. Play music. Pause. Stop. Tere Bina. Akshara. Call Akshara."
+            # Primes the model to recognize YOUR name and Indian song titles
+            initial_prompt="Jarvis, listen carefully. Play Bollywood songs, A.R. Rahman, Arijit Singh. Akshara, Akhil. Main Agar Kahoon, Tum Hi Ho. Kerala, India."
         )
         
         full_text = ""
         for segment in segments:
-            if segment.no_speech_prob > 0.5: continue 
+            if segment.no_speech_prob > 0.4: continue 
             if segment.avg_logprob < -1.0: continue
             full_text += segment.text + " "
 
