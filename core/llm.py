@@ -13,6 +13,7 @@ class Brain:
         print(">> Connecting to Groq (Llama 3.3)...")
         self.client = Groq(api_key=config.GROQ_API_KEY)
         self.model = "llama-3.3-70b-versatile"
+        self.gaming_mode = False
         
         self.history = [] 
         self.max_history = 15 
@@ -109,6 +110,8 @@ class Brain:
             return (False, speech_part, None)
 
     def think(self, user_input):
+        if self.gaming_mode:
+            self.system_instruction += "\nGAMING_DIRECTIVE: Be virtually silent. Only confirm actions with 'Done' or 'On it'. No follow-ups."
         self.history.append({"role": "user", "content": user_input})
         if len(self.history) > self.max_history:
             self.history = [self.history[0]] + self.history[-(self.max_history-1):]

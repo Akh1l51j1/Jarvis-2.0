@@ -21,8 +21,8 @@ class AudioListener:
         
         # --- THE ACCURACY FIX: UPGRADE TO 'SMALL' ---
         # 'small' is significantly better at Indian names/songs than 'base'
-        print(">> Loading Multilingual Whisper (Small)...")
-        self.whisper = WhisperModel("small", device="cpu", compute_type="int8") 
+        print(">> Loading Multilingual Whisper (base)...")
+        self.whisper = WhisperModel("base", device="cpu", compute_type="int8") 
         
         self.p = pyaudio.PyAudio()
         self.stream = self.p.open(format=pyaudio.paInt16,

@@ -1,5 +1,6 @@
 import sys
 import time
+import os
 from datetime import datetime
 from engine.listener import AudioListener
 from engine.speaker import Speaker
@@ -7,6 +8,7 @@ from core.llm import Brain
 import config
 from capabilities.music_ops import music_engine 
 from server_bridge import bridge
+from capabilities.gaming_ops import gaming_engine
 
 # SETTINGS
 CONVERSATION_TIMEOUT = 15 
@@ -30,7 +32,8 @@ def main():
     except Exception as e: print(f"Bridge Error: {e}")
 
     try:
-        ear = AudioListener()
+        # Note: Ensure listener.py is set to whisper "base" for speed
+        ear = AudioListener() 
         mouth = Speaker()
         brain = Brain()
     except Exception as e:
@@ -44,58 +47,58 @@ def main():
 
     while True:
         try:
+            # --- UI STATUS PERSISTENCE ---
+            # We only send IDLE/LISTENING if Gaming Mode is OFF to keep UI hidden
             if conversation_mode:
-                bridge.update_status("LISTENING", "Active Mode")
+                if not brain.gaming_mode:
+                    bridge.update_status("LISTENING", "Active Mode")
                 remaining = int(CONVERSATION_TIMEOUT - (time.time() - last_active_time))
                 print(f"\n>> Active Mode (Timeout in {remaining}s)...")
             else:
-                bridge.update_status("IDLE", "Waiting for Wake Word...")
+                if not brain.gaming_mode:
+                    bridge.update_status("IDLE", "Waiting for Wake Word...")
                 print("\n>> Waiting for Wake Word...")
 
             # --- LISTEN ---
             user_text = ear.listen()
-            
-            # --- 1. SMART TIMEOUT CHECK (THE FIX) ---
-            # Only timeout if user said NOTHING.
-            # If user spoke (len > 3), reset timer and process.
             has_spoken = len(user_text) > 3
             
+            # --- SMART TIMEOUT CHECK ---
             if conversation_mode and not has_spoken:
                 if (time.time() - last_active_time > CONVERSATION_TIMEOUT):
                     print(">> Time out. Returning to Standby.")
                     mouth.play_sound("shutdown") 
-                    mouth.speak("Standing by, Sir.") # <--- ADDED VOICE
+                    mouth.speak("Standing by, Sir.")
                     conversation_mode = False
                     continue
             
             if not has_spoken: 
                 if not conversation_mode:
-                    last_active_time = time.time() # Keep it fresh
+                    last_active_time = time.time()
                 continue
 
-            # --- 2. WAKE WORD CHECK ---
+            # --- WAKE WORD CHECK ---
             is_wake_word = False
             for word in config.WAKE_WORDS:
                 if word in user_text.lower():
                     is_wake_word = True
+                    mouth.play_sound("listen") # INSTANT FEEDBACK
                     break
             
             should_process = False
-            
             if is_wake_word:
                 should_process = True
                 conversation_mode = True
                 last_active_time = time.time()
             elif conversation_mode:
-                # User spoke in active mode -> Process it AND Reset Timer
+                if has_spoken:
+                    mouth.play_sound("listen") # INSTANT FEEDBACK for follow-ups
                 should_process = True
-                last_active_time = time.time() # Reset timer because they spoke
+                last_active_time = time.time()
             
             if should_process:
                 print(f"USER: {user_text}")
                 bridge.log(f"USER: {user_text}")
-
-                if is_wake_word: mouth.play_sound("listen")
 
                 was_playing = music_engine.is_playing()
                 if was_playing: music_engine.pause_music()
@@ -103,10 +106,32 @@ def main():
                 command = user_text.lower()
                 for word in config.WAKE_WORDS:
                     command = command.replace(word, "").strip()
-                if "braille" in command: command = command.replace("braille", "brave")
+                
+                # --- 1. FUZZY GAMING MODE TRIGGERS (PRIORITY) ---
+                # This catches "Enable", "Donald", "Turn on" etc.
+                gaming_triggers = ["gaming mode", "game mode", "stealth mode"]
+                
+                # Check for ON
+                if any(t in command for t in gaming_triggers) and any(x in command for x in ["on", "enable", "start", "activate", "donald"]):
+                    brain.gaming_mode = True 
+                    bridge.update_status("GAMING", "Stealth Mode Engaged")
+                    response = gaming_engine.toggle_gaming_mode(True)
+                    mouth.speak(response)
+                    last_active_time = time.time()
+                    continue # Stops the Brain from thinking it's an app
 
-                soft_triggers = ["nothing", "no thanks", "stop listening", "bye", "goodbye"]
-                if any(trigger in command for trigger in soft_triggers):
+                # Check for OFF
+                elif any(t in command for t in gaming_triggers) and any(x in command for x in ["off", "disable", "stop", "exit"]):
+                    brain.gaming_mode = False
+                    bridge.update_status("ONLINE", "Systems Restored")
+                    response = gaming_engine.toggle_gaming_mode(False)
+                    mouth.speak(response)
+                    last_active_time = time.time()
+                    continue
+
+                # --- 2. SYSTEM COMMANDS ---
+                soft_triggers = ["nothing","standby", "no thanks", "stop listening", "bye", "goodbye"]
+                if any(trigger in command for trigger in soft_triggers):    
                     mouth.speak("Standing by, Sir.")
                     conversation_mode = False
                     if was_playing: music_engine.resume_music()
@@ -116,22 +141,25 @@ def main():
                     mouth.speak("Goodbye, Sir.")
                     sys.exit(0)
 
+                # --- 3. BRAIN PROCESSING (Only if not a system command) ---
                 if len(command) > 2:
-                    bridge.update_status("PROCESSING", "Thinking...")
+                    if not brain.gaming_mode:
+                        bridge.update_status("PROCESSING", "Thinking...")
+                    
                     response = brain.think(command)
                     
-                    # --- THE FIX: Only print if there is actually a response ---
                     if response and response.strip():
                         print(f"JARVIS: {response}")
                         bridge.log(f"JARVIS: {response}")
-                        bridge.update_status("SPEAKING", "Replying...")
+                        if not brain.gaming_mode:
+                            bridge.update_status("SPEAKING", "Replying...")
                         mouth.speak(response)
                     
                     last_active_time = time.time() 
-                       
                 else:
                     print("   (No command heard)")
 
+                # --- MUSIC RESUME LOGIC ---
                 stop_keywords = ["stop", "pause", "quiet", "silence", "play", "song", "close", "terminate", "exit", "quit"]
                 is_stop_command = any(k in command for k in stop_keywords)
 
