@@ -7,38 +7,56 @@ from faster_whisper import WhisperModel
 CHANNELS = 1
 RATE = 16000
 CHUNK = 512 
-# Increased for natural pauses and better distant hearing
-SILENCE_THRESHOLD = 1.0 
-# Adjusted for your 6m mic setup
-VAD_SENSITIVITY = 0.4 
+SILENCE_THRESHOLD = 1.6  # Increased to stop him from cutting you off when you pause to think
+VAD_SENSITIVITY = 0.5    # Increased slightly to ignore keyboard clicks
 
 class AudioListener:
     def __init__(self):
         print(">> Loading VAD Model...")
-        self.vad_model, _ = torch.hub.load(repo_or_dir='snakers4/silero-vad',
-                                           model='silero_vad',
-                                           trust_repo=True)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print(f">> VAD/Whisper offloaded to: {torch.cuda.get_device_name(0)}")
+
+        # Load VAD
+        self.vad_model, self.utils = torch.hub.load(
+            repo_or_dir='snakers4/silero-vad',
+            model='silero_vad',
+            force_reload=False
+        )
+        self.vad_model.to(self.device)
         
-        # --- THE ACCURACY FIX: UPGRADE TO 'SMALL' ---
-        # 'small' is significantly better at Indian names/songs than 'base'
-        print(">> Loading Multilingual Whisper (base)...")
-        self.whisper = WhisperModel("base", device="cpu", compute_type="int8") 
+        # --- THE UPGRADE: SMALL.EN MODEL ---
+        print(">> Loading Faster-Whisper (small.en)...")
+        # 'small.en' is much better at technical terms than 'base'
+        self.whisper = WhisperModel("small.en", device="cuda", compute_type="int8")
         
         self.p = pyaudio.PyAudio()
-        self.stream = self.p.open(format=pyaudio.paInt16,
-                                  channels=CHANNELS,
-                                  rate=RATE,
-                                  input=True,
-                                  frames_per_buffer=CHUNK)
+        
+        # FORCE DEVICE ID 1 (Based on your mic_test.py results)
+        # We explicitly ask for index 1 to ensure we don't accidentally grab the Array
+        try:
+            self.stream = self.p.open(format=pyaudio.paInt16,
+                                      channels=CHANNELS,
+                                      rate=RATE,
+                                      input=True,
+                                      input_device_index=1, # <--- HARDCODED TO YOUR BOYA MIC
+                                      frames_per_buffer=CHUNK)
+        except:
+            # Fallback if ID 1 fails
+            print(">> Warning: Device 1 failed. Falling back to default.")
+            self.stream = self.p.open(format=pyaudio.paInt16,
+                                      channels=CHANNELS,
+                                      rate=RATE,
+                                      input=True,
+                                      frames_per_buffer=CHUNK)
 
     def is_speech(self, audio_chunk):
         audio_float32 = np.frombuffer(audio_chunk, dtype=np.int16).astype(np.float32) / 32768.0
-        confidence = self.vad_model(torch.from_numpy(audio_float32), RATE).item()
+        input_tensor = torch.from_numpy(audio_float32).to(self.device)
+        with torch.no_grad(): 
+            confidence = self.vad_model(input_tensor, RATE).item()
         return confidence > VAD_SENSITIVITY
 
     def listen(self):
-        # --- THE STALE HEARING FIX: RESET BUFFER ---
-        # We stop/start the stream to flush 30+ mins of background noise
         self.stream.stop_stream()
         self.stream.start_stream()
         
@@ -67,21 +85,18 @@ class AudioListener:
         audio_data = b''.join(frames)
         audio_np = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
         
-        # --- THE MULTILINGUAL FIX: AUTO-DETECT + HINGLISH PROMPT ---
+        # --- TRANSCRIBE WITH TECH CONTEXT ---
         segments, _ = self.whisper.transcribe(
             audio_np, 
             beam_size=5,
-            language=None, # AUTO-DETECT allows Hindi/English mixed speech
+            language="en", 
             vad_filter=True, 
-            vad_parameters=dict(min_silence_duration_ms=500),
-            # Primes the model to recognize YOUR name and Indian song titles
-            initial_prompt="Jarvis, listen carefully. Play Bollywood songs, A.R. Rahman, Arijit Singh. Akshara, Akhil. Main Agar Kahoon, Tum Hi Ho. Kerala, India."
+            # We tell the model to expect Coding and Indian names
+            initial_prompt="Jarvis, listen carefully. Akshara, Akhil. Bubble Sort, Python, Code, Algorithm, Function, Variable, Shutdown, Volume, Brightness, Torque."
         )
         
         full_text = ""
         for segment in segments:
-            if segment.no_speech_prob > 0.4: continue 
-            if segment.avg_logprob < -1.0: continue
             full_text += segment.text + " "
 
         return full_text.strip()

@@ -10,6 +10,23 @@ from capabilities.music_ops import music_engine
 from server_bridge import bridge
 from capabilities.gaming_ops import gaming_engine
 
+# --- HARDCODED NVIDIA DLL FIX (MARK III STABILITY) ---
+def initialize_nvidia_dlls():
+    nvidia_path = r"D:\jarvis 2.0\venv\Lib\site-packages\nvidia\cublas\bin"
+    cudnn_path = r"D:\jarvis 2.0\venv\Lib\site-packages\nvidia\cudnn\bin"
+    
+    if os.path.exists(nvidia_path):
+        os.add_dll_directory(nvidia_path)
+        os.environ['PATH'] = nvidia_path + os.pathsep + os.environ['PATH']
+        print(f">> NVIDIA cuBLAS Path Linked.")
+
+    if os.path.exists(cudnn_path):
+        os.add_dll_directory(cudnn_path)
+        os.environ['PATH'] = cudnn_path + os.pathsep + os.environ['PATH']
+        print(f">> NVIDIA cuDNN Path Linked.")
+
+initialize_nvidia_dlls()
+
 # SETTINGS
 CONVERSATION_TIMEOUT = 15 
 
@@ -32,7 +49,6 @@ def main():
     except Exception as e: print(f"Bridge Error: {e}")
 
     try:
-        # Note: Ensure listener.py is set to whisper "base" for speed
         ear = AudioListener() 
         mouth = Speaker()
         brain = Brain()
@@ -48,7 +64,6 @@ def main():
     while True:
         try:
             # --- UI STATUS PERSISTENCE ---
-            # We only send IDLE/LISTENING if Gaming Mode is OFF to keep UI hidden
             if conversation_mode:
                 if not brain.gaming_mode:
                     bridge.update_status("LISTENING", "Active Mode")
@@ -82,7 +97,7 @@ def main():
             for word in config.WAKE_WORDS:
                 if word in user_text.lower():
                     is_wake_word = True
-                    mouth.play_sound("listen") # INSTANT FEEDBACK
+                    mouth.play_sound("listen")
                     break
             
             should_process = False
@@ -92,7 +107,7 @@ def main():
                 last_active_time = time.time()
             elif conversation_mode:
                 if has_spoken:
-                    mouth.play_sound("listen") # INSTANT FEEDBACK for follow-ups
+                    mouth.play_sound("listen")
                 should_process = True
                 last_active_time = time.time()
             
@@ -107,20 +122,17 @@ def main():
                 for word in config.WAKE_WORDS:
                     command = command.replace(word, "").strip()
                 
-                # --- 1. FUZZY GAMING MODE TRIGGERS (PRIORITY) ---
-                # This catches "Enable", "Donald", "Turn on" etc.
+                # --- 1. FUZZY GAMING MODE TRIGGERS ---
                 gaming_triggers = ["gaming mode", "game mode", "stealth mode"]
                 
-                # Check for ON
                 if any(t in command for t in gaming_triggers) and any(x in command for x in ["on", "enable", "start", "activate", "donald"]):
                     brain.gaming_mode = True 
                     bridge.update_status("GAMING", "Stealth Mode Engaged")
                     response = gaming_engine.toggle_gaming_mode(True)
                     mouth.speak(response)
                     last_active_time = time.time()
-                    continue # Stops the Brain from thinking it's an app
+                    continue 
 
-                # Check for OFF
                 elif any(t in command for t in gaming_triggers) and any(x in command for x in ["off", "disable", "stop", "exit"]):
                     brain.gaming_mode = False
                     bridge.update_status("ONLINE", "Systems Restored")
@@ -141,21 +153,44 @@ def main():
                     mouth.speak("Goodbye, Sir.")
                     sys.exit(0)
 
-                # --- 3. BRAIN PROCESSING (Only if not a system command) ---
+                # --- 3. [FIXED] MUSIC MUZZLE & BRAIN PROCESSING ---
+                music_start_keywords = ["play", "song", "spotify", "music", "youtube"]
+                is_music_start = any(k in command for k in music_start_keywords)
+
                 if len(command) > 2:
-                    if not brain.gaming_mode:
-                        bridge.update_status("PROCESSING", "Thinking...")
-                    
-                    response = brain.think(command)
-                    
-                    if response and response.strip():
-                        print(f"JARVIS: {response}")
-                        bridge.log(f"JARVIS: {response}")
+                    if is_music_start:
+                        # Muzzle the ear immediately
+                        print(">> Music command detected. Muzzling microphone...")
+                        ear.stream.stop_stream() 
+                        
+                        response = brain.think(command)
+                        
+                        if response and response.strip():
+                            print(f"JARVIS: {response}")
+                            bridge.log(f"JARVIS: {response}")
+                            mouth.speak(response)
+                        
+                        print(">> Waiting for audio environment to stabilize...")
+                        time.sleep(3.5) 
+                        ear.stream.start_stream()
+                        last_active_time = time.time()
+                        continue 
+
+                    else:
+                        # Normal Processing
                         if not brain.gaming_mode:
-                            bridge.update_status("SPEAKING", "Replying...")
-                        mouth.speak(response)
-                    
-                    last_active_time = time.time() 
+                            bridge.update_status("PROCESSING", "Thinking...")
+                        
+                        response = brain.think(command)
+                        
+                        if response and response.strip():
+                            print(f"JARVIS: {response}")
+                            bridge.log(f"JARVIS: {response}")
+                            if not brain.gaming_mode:
+                                bridge.update_status("SPEAKING", "Replying...")
+                            mouth.speak(response)
+                        
+                        last_active_time = time.time()
                 else:
                     print("   (No command heard)")
 
