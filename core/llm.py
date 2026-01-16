@@ -80,7 +80,7 @@ class Brain:
         """
         
         self.history.append({"role": "system", "content": self.system_instruction})
-        print("   ✅ Brain Connected (Groq Online).")
+        print("    Brain Connected (Groq Online).")
 
     def load_user_profile(self):
         if os.path.exists("user_profile.json"):
@@ -88,7 +88,7 @@ class Brain:
                 with open("user_profile.json", "r") as f:
                     return json.load(f)
             except Exception as e:
-                print(f"   ⚠️ Profile Load Error: {e}")
+                print(f"    Profile Load Error: {e}")
         return {}
 
     def get_greeting(self):

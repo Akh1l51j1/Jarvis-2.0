@@ -2,15 +2,30 @@ import subprocess
 import os
 import sys
 import time
+import datetime
+
+# --- LOGGER SETUP ---
+# --- LOGGER SETUP ---
+def log(message):
+    """Writes messages to a text file so we can see what's wrong."""
+    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+    # ADDED encoding='utf-8' to support emojis
+    with open("debug_log.txt", "a", encoding="utf-8") as f:
+        f.write(f"[{timestamp}] {message}\n")
 
 def launch_system():
-    print(">> STARTING JARVIS (MANAGER MODE)...")
+    # Clear previous log
+    # ADDED encoding='utf-8' here too
+    with open("debug_log.txt", "w", encoding="utf-8") as f:
+        f.write("=== JARVIS LAUNCH LOG ===\n")
 
-    # 1. FIND THE UI FOLDER
+    log("Launcher started.")
+
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    log(f"Root Directory: {ROOT_DIR}")
+
+    # Find UI
     UI_DIR = None
-    
-    # Smart search for the folder
     possible_names = ["JarvisUI", "jarvisui", "ui", "UI", "client"]
     for name in possible_names:
         candidate = os.path.join(ROOT_DIR, name)
@@ -19,50 +34,61 @@ def launch_system():
             break
             
     if not UI_DIR:
-        print("\n❌ CRITICAL ERROR: UI FOLDER NOT FOUND")
-        print("   Make sure your React folder is next to this script.")
-        input("Press Enter to exit...")
+        log("CRITICAL: UI Folder not found.")
         return
 
-    # 2. LAUNCH
-    # 0 = Visible Windows (Debug)
-    # Change to 0x08000000 later to hide them!
+    log(f"UI Directory found: {UI_DIR}")
+
+    # --- CRITICAL SETTINGS ---
+    # We force stdout to DEVNULL so 'print' statements don't crash the background process
     MODE = 0 
-    
+
     try:
-        print("   [1/2] Igniting Interface...")
-        # Start UI and keep the process handle
-        ui_process = subprocess.Popen("npm run dev", cwd=UI_DIR, shell=True, creationflags=MODE)
+        # 1. START UI
+        log("Attempting to launch UI (npm run dev)...")
+        ui_process = subprocess.Popen(
+            "npm run dev", 
+            cwd=UI_DIR, 
+            shell=True, 
+            creationflags=MODE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        log(f"UI Process spawned. PID: {ui_process.pid}")
+        
         time.sleep(3) 
 
-        print("   [2/2] Awakening Brain...")
-        # Start Brain and keep the process handle
-        brain_process = subprocess.Popen([sys.executable, "main.py"], cwd=ROOT_DIR, creationflags=MODE)
-
-        print(">> SYSTEM ONLINE. MONITORING...")
-        print("   (Use 'Jarvis, shut down' to close everything)")
-
-        # 3. MONITORING LOOP (The Fix)
-        # This line pauses the script here until main.py stops running
-        brain_process.wait()
-
-        # 4. CLEANUP (When Brain dies, kill UI)
-        print("\n>> Brain has shut down. Terminating Interface...")
+        # 2. START BRAIN
+        log("Attempting to launch Brain (main.py)...")
+        # We redirect the Brain's output to a SEPARATE file so we can see its specific crash
+        brain_log = open("brain_error_log.txt", "w")
         
-        # This command forcefully kills the entire UI process tree (npm -> vite -> electron)
+        brain_process = subprocess.Popen(
+            [sys.executable, "main.py"], 
+            cwd=ROOT_DIR, 
+            creationflags=MODE,
+            stdout=brain_log, # Write normal prints here
+            stderr=brain_log  # Write crashes/errors here
+        )
+        log(f"Brain Process spawned. PID: {brain_process.pid}")
+
+        # 3. MONITOR
+        log("Monitoring processes...")
+        exit_code = brain_process.wait() # <--- This pauses script until Brain dies
+        
+        log(f"⚠️ Brain has exited with code: {exit_code}")
+        log("Terminating UI...")
+        
         subprocess.call(f"taskkill /F /T /PID {ui_process.pid}", shell=True)
-        
-        print(">> GOODBYE.")
-        time.sleep(1)
+        brain_log.close()
+        log("Cleanup complete. Goodbye.")
         
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        log(f"❌ LAUNCHER CRASHED: {e}")
         try:
-            # Emergency cleanup if launch fails
             if 'ui_process' in locals():
                 subprocess.call(f"taskkill /F /T /PID {ui_process.pid}", shell=True)
         except: pass
-        input("Press Enter to exit...")
 
 if __name__ == "__main__":
     launch_system()

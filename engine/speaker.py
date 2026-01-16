@@ -33,7 +33,7 @@ class Speaker:
         else:
             try:
                 self.kokoro = Kokoro(model_path, voices_path)
-                print("   ✅ Kokoro TTS Loaded.")
+                print("    Kokoro TTS Loaded.")
             except Exception as e:
                 print(f"   [Speaker Error] Failed to load model: {e}")
                 self.kokoro = None

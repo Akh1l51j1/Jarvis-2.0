@@ -142,15 +142,19 @@ def main():
                     continue
 
                 # --- 2. SYSTEM COMMANDS ---
-                soft_triggers = ["nothing","standby", "no thanks", "stop listening", "bye", "goodbye"]
+                soft_triggers = ["nothing","standby","stand by" "no thanks", "stop listening", "bye", "goodbye"]
                 if any(trigger in command for trigger in soft_triggers):    
                     mouth.speak("Standing by, Sir.")
                     conversation_mode = False
                     if was_playing: music_engine.resume_music()
                     continue 
 
-                if "shut down" in command or "power off" in command:
+                # Check for one-word AND two-word variants
+                shutdown_triggers = ["shut down", "shutdown", "power off", "terminate", "go to sleep"]
+                if any(trigger in command for trigger in shutdown_triggers):
+                    bridge.update_status("OFFLINE", "Shutting Down...")
                     mouth.speak("Goodbye, Sir.")
+                    time.sleep(1.5) # Let him finish speaking before cutting power
                     sys.exit(0)
 
                 # --- 3. [FIXED] MUSIC MUZZLE & BRAIN PROCESSING ---

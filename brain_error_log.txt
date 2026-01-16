@@ -1,0 +1,119 @@
+D:\jarvis 2.0\venv\Lib\site-packages\pydub\utils.py:170: RuntimeWarning: Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work
+  warn("Couldn't find ffmpeg or avconv - defaulting to ffmpeg, but may not work", RuntimeWarning)
+pygame 2.6.1 (SDL 2.28.4, Python 3.11.9)
+Hello from the pygame community. https://www.pygame.org/contribute.html
+   [Spotify] Connecting...
+   [Spotify] Connection Successful.
+   [Volume] Keyboard Control Active.
+   [Memory] Loading RAG Model...
+   [Memory] RAG System Online.
+>> NVIDIA cuBLAS Path Linked.
+>> NVIDIA cuDNN Path Linked.
+
+>> STARTING JARVIS 2.0
+------------------------
+>> [Bridge] UI Server Online (Port 5000)
+>> Loading VAD Model...
+>> VAD/Whisper offloaded to: NVIDIA GeForce RTX 4060 Laptop GPU
+ * Serving Flask app 'server_bridge'
+ * Debug mode: off
+Using cache found in C:\Users\Akhil/.cache\torch\hub\snakers4_silero-vad_master
+The system cannot find the file google.
+The system cannot find the file google.
+>> Loading Faster-Whisper (small.en)...
+>> Loading Kokoro TTS (v1.0)...
+    Kokoro TTS Loaded.
+>> Connecting to Groq (Llama 3.3)...
+    Brain Connected (Groq Online).
+
+>> INITIALIZING SYSTEMS...
+JARVIS: Good evening, Akhil. Systems online.
+>> Speaking: Good evening, Akhil.
+>> Speaking: Systems online.
+
+>> Waiting for Wake Word...
+
+>> Listening...
+
+>> Waiting for Wake Word...
+
+>> Listening...
+
+>> Waiting for Wake Word...
+
+>> Listening...
+USER: Jarvis, I have dandruff in my head. Do you think Pilgrims, non-drying, andy dandruff shampoo will be good for me?
+   [Context] [CURRENT STATUS: Active App='notepad' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: search_google -> Pilgrim's Non-Drying Anti-Dandruff Shampoo reviews
+   [Tavily] Searching: Pilgrim's Non-Drying Anti-Dandruff Shampoo reviews
+   [Brain Logic] Digesting info from search_google...
+   [Brain Logic] Executing: save_memory -> Pilgrim's Non-Drying Anti-Dandruff Shampoo helps with dandruff and hair fall
+JARVIS: It seems like the consensus is in: Pilgrim's shampoo does indeed help with dandruff. One reviewer even claimed it stopped their hair fall and eliminated dandruff entirely. Worth a shot, if you ask me.
+>> Speaking: It seems like the consensus is in: Pilgrim's shampoo does indeed help with dandruff.
+>> Speaking: One reviewer even claimed it stopped their hair fall and eliminated dandruff entirely.
+>> Speaking: Worth a shot, if you ask me.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Listening...
+USER: Can you show me some pictures on...
+   [Context] [CURRENT STATUS: Active App='explorer' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> Google Images
+   [Tool] Opening: Google Images
+JARVIS: You want to see some visuals, huh? I'll grab some pictures for you.
+>> Speaking: You want to see some visuals, huh?
+>> Speaking: I'll grab some pictures for you.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Listening...
+USER: Okay, grab some pictures and open a browser.
+   [Context] [CURRENT STATUS: Active App='electron' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> Google Chrome
+   [Tool] Opening: Google Chrome
+JARVIS: Time to get visual. I'll fire up the browser and get those images loaded for you.
+>> Speaking: Time to get visual.
+>> Speaking: I'll fire up the browser and get those images loaded for you.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Listening...
+USER: Standby.
+>> Speaking: Standing by, Sir.
+
+>> Waiting for Wake Word...
+
+>> Listening...
+USER: Jarvis, find pilgrim andy dandruff shampoo file from my desktop.
+   [Context] [CURRENT STATUS: Active App='explorer' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: locate_file -> Desktop/Pilgrim Andy Dandruff Shampoo
+   [Analyst] Scanning ALL drives for: Desktop/Pilgrim Andy Dandruff Shampoo...
+   [Brain Logic] Digesting info from locate_file...
+   [Brain Logic] Executing: locate_file -> Desktop/Pilgrim Andy Dandruff Shampoo returned no results, by the way.
+   [Analyst] Scanning ALL drives for: Desktop/Pilgrim Andy Dandruff Shampoo returned no results, by the way....
+JARVIS: Could not locate 'Desktop/Pilgrim Andy Dandruff Shampoo returned no results, by the way.'.
+>> Speaking: Could not locate 'Desktop/Pilgrim Andy Dandruff Shampoo returned no results, by the way.'.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Listening...
+USER: pilgrimshambuingredients.txt
+   [Context] [CURRENT STATUS: Active App='electron' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: locate_file -> Desktop/pilgrimshambuingredients.txt
+   [Analyst] Scanning ALL drives for: Desktop/pilgrimshambuingredients.txt...
+   [Brain Logic] Digesting info from locate_file...
+   [Brain Logic] Executing: locate_file -> Desktop/pilgrimshambuingredients.txt returned no results, looks like that file is MIA.
+   [Analyst] Scanning ALL drives for: Desktop/pilgrimshambuingredients.txt returned no results, looks like that file is MIA....
+JARVIS: Could not locate 'Desktop/pilgrimshambuingredients.txt returned no results, looks like that file is MIA.'.
+>> Speaking: Could not locate 'Desktop/pilgrimshambuingredients.txt returned no results, looks like that file is MIA.'.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Listening...
+USER: Okay, Jarvis, shut down.
+>> Speaking: Goodbye, Sir.
