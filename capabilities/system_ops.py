@@ -11,10 +11,8 @@ class SystemOps:
         print(f"   [Tavily] Searching: {query}")
         try:
             client = TavilyClient(api_key=config.TAVILY_API_KEY)
-            # 'search_depth="basic"' is faster and cheaper
             response = client.search(query=query, search_depth="basic", max_results=3)
             
-            # Format the results into a readable string
             results = []
             for result in response.get('results', []):
                 results.append(f"- {result['title']}: {result['content']}")
@@ -25,39 +23,59 @@ class SystemOps:
 
     @staticmethod
     def open_application(app_name):
-        """
-        Opens a Windows application using common paths.
-        """
-        print(f"   [Tool] Opening: {app_name}")
-        app_name = app_name.lower()
+        """Opens Apps, Websites, or Specific Files (PDFs, Docs)."""
+        print(f"   [Tool] Processing: {app_name}")
+        target = app_name.lower().strip()
         
-        # Get User Path (e.g., C:\Users\Akhil)
-        user_path = os.path.expanduser("~")
-        appdata = os.getenv('APPDATA') 
-        localappdata = os.getenv('LOCALAPPDATA') 
+        # --- 0. SMART FILE OPENER (FIXED) ---
+        # 1. Clean the name (Remove "Desktop/" if the Brain added it)
+        clean_name = app_name.replace("Desktop/", "").replace("Desktop\\", "").replace("desktop/", "").replace("desktop\\", "")
+        
+        # 2. Build Paths
+        # Path A: Exactly what was asked (e.g. "D:/Folder/file.txt")
+        abs_path = app_name 
+        # Path B: On the Desktop (e.g. "C:/Users/Akhil/Desktop/file.txt")
+        desktop_path = os.path.join(os.path.expanduser("~"), "Desktop", clean_name)
+        
+        # 3. Check and Open
+        if target.endswith(('.pdf', '.txt', '.docx', '.png', '.jpg', '.py', '.cpp')):
+            if os.path.exists(abs_path): 
+                os.system(f'start "" "{abs_path}"')
+                return f"Opened file: {app_name}"
+            elif os.path.exists(desktop_path):
+                os.system(f'start "" "{desktop_path}"')
+                return f"Opened file from Desktop: {clean_name}"
 
-        # --- APP LIBRARY (For Opening) ---
+        # --- 1. THE SEARCH TRAP ---
+        if "search for" in target:
+            query = target.split("search for")[-1].strip()
+            safe_query = query.replace(" ", "+") 
+            
+            if "youtube" in target:
+                os.system(f"start https://www.youtube.com/results?search_query={safe_query}")
+                return f"Searching YouTube for '{query}'"
+            elif "reddit" in target:
+                os.system(f"start https://www.reddit.com/search/?q={safe_query}")
+                return f"Searching Reddit for '{query}'"
+            else:
+                os.system(f"start https://www.google.com/search?q={safe_query}")
+                return f"Searching Google for '{query}'"
+
+        # --- 2. APP LIBRARY (Hardcoded Speed) ---
+        user_path = os.path.expanduser("~")
+        
         apps = {
-            # 1. SYSTEM
             "file explorer": "explorer.exe",
             "explorer": "explorer.exe",
             "calculator": "calc.exe",
             "notepad": "notepad.exe",
             "settings": "start ms-settings:",
             "cmd": "start cmd.exe",
-            
-            # 2. BROWSERS
             "brave": r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
             "chrome": "chrome.exe",
-
-            # 3. SOCIALS
             "telegram": r"C:\Users\Akhil\AppData\Roaming\Telegram Desktop\Telegram.exe",
-            
-            # 4. CREATIVE (Check your specific versions!)
             "figma": r"C:\Users\Akhil\AppData\Local\Figma\app-125.9.10\Figma.exe",
             "photoshop": r"C:\Program Files\Adobe\Adobe Photoshop 2023\Photoshop.exe",
-
-            # 5. GAMES & TOOLS
             "valorant": r"C:\Riot Games\Riot Client\RiotClientServices.exe",
             "tlauncher": r"C:\Users\Akhil\AppData\Roaming\.minecraft\TLauncher.exe",
             "ghelper": r"C:\Users\Akhil\Desktop\GHelper.exe",
@@ -65,68 +83,53 @@ class SystemOps:
             "phonelink": "start ms-phone:",
         }
 
-        try:
-            # Direct Match
-            if app_name in apps:
-                path = apps[app_name]
-                # Check if file actually exists before trying (except for system commands)
-                is_system_cmd = "start " in path or "explorer" in path or "calc" in path or "notepad" in path
-                
-                if is_system_cmd or os.path.exists(path) or "--launch" in path:
-                    if "start " in path:
-                        os.system(path)
-                    else:
-                        os.system(f'start "" "{path}"')
-                    return f"Opening {app_name}..."
-                else:
-                    return f"Path not found for {app_name}. Please check system_ops.py"
+        if target in apps:
+            path = apps[target]
+            is_system_cmd = "start " in path or "explorer" in path or "calc" in path or "notepad" in path
             
-            # Generic Attempt (Try to just run the name)
-            else:
-                os.system(f"start {app_name}")
-                return f"Attempting to open {app_name}..."
-                
-        except Exception as e:
-            return f"Failed to open {app_name}: {e}"
+            if is_system_cmd or os.path.exists(path) or "--launch" in path:
+                if "start " in path: os.system(path)
+                else: os.system(f'start "" "{path}"')
+                return f"Opening {target}..."
 
+        # --- 3. THE HUNTER (Fallback) ---
+        # Import inside function to prevent circular import crash
+        from capabilities.app_opener import AppOpener
+        return AppOpener.open_app(app_name)
+        
     @staticmethod
     def close_application(app_name):
-        """
-        Closes an application by killing its process.
-        """
+        """Closes an application by killing its process."""
         print(f"   [Tool] Closing: {app_name}")
-        app_name = app_name.lower().strip()
+        target = app_name.lower().strip()
 
         # --- PROCESS MAP (For Closing) ---
-        # Maps "Name" to "process.exe"
         processes = {
             "chrome": "chrome.exe",
             "brave": "brave.exe",
             "notepad": "notepad.exe",
-            "calculator": "CalculatorApp.exe", # Win10/11 specific
+            "calculator": "CalculatorApp.exe",
             "calc": "CalculatorApp.exe",
             "spotify": "spotify.exe",
             "discord": "discord.exe",
             "telegram": "telegram.exe",
             "photoshop": "photoshop.exe",
             "figma": "figma.exe",
-            "valorant": "VALORANT-Win64-Shipping.exe", # Actual game process
+            "valorant": "VALORANT-Win64-Shipping.exe",
             "riot": "RiotClientUx.exe",
             "ghelper": "GHelper.exe",
-            "tlauncher": "javaw.exe", # Minecraft runs as Java (Added comma here)
-            "phonelink": "PhoneExperienceHost.exe", # (Added comma here)
+            "tlauncher": "javaw.exe",
+            "minecraft": "javaw.exe",
+            "phonelink": "PhoneExperienceHost.exe",
             "phone link": "PhoneExperienceHost.exe"
         }
 
         try:
-            # Determine process name
-            process_name = processes.get(app_name, f"{app_name}.exe")
-            
-            # Command to kill process forcefully (/F)
-            os.system(f"taskkill /F /IM {process_name}")
-            return f"Closed {app_name}."
+            process_name = processes.get(target, f"{target}.exe")
+            os.system(f"taskkill /F /IM {process_name} /T")
+            return f"Closed {target}."
         except Exception as e:
-            return f"Failed to close {app_name}: {e}"
+            return f"Failed to close {target}: {e}"
 
     @staticmethod
     def get_system_status():

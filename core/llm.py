@@ -9,34 +9,47 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import config
 from capabilities.library import tool_registry
 from capabilities.window_ops import window_engine  # <--- NEW: THE EYES
+from openai import OpenAI
 
 class Brain:
-    def __init__(self):
+    def __init__(self, bridge=None):
         print(">> Connecting to Groq (Llama 3.3)...")
+        # --- BRAIN 1: GROQ (Primary, Fast) ---
         self.client = Groq(api_key=config.GROQ_API_KEY)
         self.model = "llama-3.3-70b-versatile"
-        
-        # We keep this for manual overrides, but the Window Sensor is now the main driver
+
+        print(">> Connecting to OpenRouter (Backup)...")
+        # --- BRAIN 2: OPENROUTER (Backup & Vision) ---
+        self.openrouter_client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=config.OPENROUTER_API_KEY,
+            # OpenRouter REQUIRES these headers for free models
+            default_headers={
+                "HTTP-Referer": "https://github.com/akhil/jarvis",
+                "X-Title": "Jarvis 2.0"
+            }
+        )
+        self.backup_model = "meta-llama/llama-3-8b-instruct:free"
+
+        # --- EXISTING JARVIS STATE ---
+        self.bridge = bridge  # <--- STORES THE CONNECTION
         self.gaming_mode = False 
-        
         self.history = [] 
-        self.max_history = 15 
+        self.max_history = 10 
         
-        # --- 1. LOAD IDENTITY FIRST ---
         self.profile = self.load_user_profile()
         self.user_name = self.profile.get("user_name", "Sir")
         preferences = self.profile.get("preferences", {})
         allergies = preferences.get("gf_allergies", ["No known allergies"])
         
-        # --- 2. BUILD TOOLS DESCRIPTION ---
+        # --- BUILD TOOLS DESCRIPTION ---
         tools_desc = ""
         for tool_name, tool_info in tool_registry.items():
             tools_desc += f"- {tool_name}: {tool_info['desc']}\n"
 
         today = datetime.now().strftime("%A, %B %d, %Y")
         
-        # --- 3. INJECT ACTIVE CONTEXT INTO SYSTEM INSTRUCTIONS ---
-        self.system_instruction = f"""
+        self.system_instruction = fr"""
         You are J.A.R.V.I.S., a highly advanced AI Assistant on a Windows PC.
         CURRENT DATE: {today}
         
@@ -61,7 +74,16 @@ class Brain:
         5. **FACT EXTRACTION:** When using 'search_google', NEVER read snippets. Extract the single specific answer.
         6. **MAX_LENGTH:** Keep responses under 2 sentences unless explaining a complex design task.
         7. **GAMING SAFETY (CRITICAL):** If the user mentions "Lag", "FPS", or "Performance" while in GAMING mode, NEVER close the active game process. Only close BACKGROUND apps (Chrome, Spotify, Discord).
-
+        
+        RULES:
+        1. **EXECUTE FIRST:** Do not talk about doing it. Just use the tool.
+        2. **NO SCRIPTING:** Do NOT generate text for the User. Only reply as Jarvis.
+        3. **WEB SEARCH VS BROWSER SEARCH (CRITICAL):** - General questions: Use `search_google` and summarize.
+           - "Open [Browser] and search for [X]": Use `open_app` with the exact string.
+        4. **SILENCE:** If you play music, output ONLY the ACTION line.
+        5. **FILE MEMORY (CRITICAL):** If the user says "Open the first one", "Open it", or "Open that file", look at the file path you just found using `locate_file` and pass the EXACT PATH to `open_app`. 
+           - Correct: ACTION: open_app | C:\Users\Akhil\Downloads\notes.pdf
+        
         SILENT_MUSIC_RULE (CRITICAL):
         - If the user asks for **MUSIC CONTROLS** (play_music, pause_music, resume_music), you must execute the ACTION and respond with NOTHING (an empty string).
         - For **ALL OTHER ACTIONS** (open_app, close_app, set_volume, locate_file, etc.), you MUST provide a witty confirmation first.
@@ -167,67 +189,97 @@ class Brain:
         return instruction
 
     def think(self, user_input):
-        # 1. Generate the Dynamic Context (The "Subconscious")
         context_note = self._get_context_instruction()
-        print(f"   [Context] {context_note.strip()}")
-
-        # 2. Inject it temporarily into the history for this specific turn
-        # We assume the user input is the trigger, so we attach context to it.
-        temp_history = self.history.copy()
         
-        # We inject the System Directive regarding context right before the user speaks
-        temp_history.append({"role": "system", "content": f"SYSTEM INJECTION: {context_note}"})
+        # --- SEND LOGS TO UI ---
+        if self.bridge:
+            try: self.bridge.log(context_note)
+            except: pass
+        print(f"\n   [Context] {context_note.strip()}")
+
+        temp_history = self.history.copy()
+        temp_history.append({"role": "system", "content": context_note})
         temp_history.append({"role": "user", "content": user_input})
 
-        # Update the REAL history (standard log)
         self.history.append({"role": "user", "content": user_input})
         if len(self.history) > self.max_history:
             self.history = [self.history[0]] + self.history[-(self.max_history-1):]
 
+        # ==========================================
+        # STEP 1: INITIAL THOUGHT (With Failover)
+        # ==========================================
         try:
             completion = self.client.chat.completions.create(
-                messages=temp_history, # Use the context-injected history
+                messages=temp_history,
                 model=self.model,
-                temperature=0.7,
-                max_tokens=800
+                temperature=0.6,
+                max_tokens=500,
+                stop=["USER:", "User:", "Akhil:"] 
             )
             response_text = completion.choices[0].message.content
-            
-            recurse, output_or_speech, tool_used = self._process_response(response_text)
-            
-            if recurse:
-                print(f"   [Brain Logic] Digesting info from {tool_used}...")
-                
-                # Context-Aware Follow-up
-                follow_up_prompt = (
-                    f"TOOL_OUTPUT: {output_or_speech}\n"
-                    f"INSTRUCTION: Report this result. Remember you are in {window_engine.mode} mode."
-                )
-                
-                # Use a temp chain for the follow-up too
-                recurse_history = temp_history + [
-                    {"role": "assistant", "content": response_text},
-                    {"role": "system", "content": follow_up_prompt}
-                ]
-                
-                follow_up_completion = self.client.chat.completions.create(
-                    messages=recurse_history,
-                    model=self.model
-                )
-                final_response = follow_up_completion.choices[0].message.content
-                
-                # Save the FINAL result to real history
-                self.history.append({"role": "assistant", "content": final_response})
-                
-                _, final_speech, _ = self._process_response(final_response)
-                return final_speech
-
-            self.history.append({"role": "assistant", "content": response_text})
-            return output_or_speech
 
         except Exception as e:
-            return f"Error: {e}"
+            if "429" in str(e) or "rate limit" in str(e).lower():
+                print("   [Brain Warning] Groq Limit Hit (Step 1). Rerouting to OpenRouter...")
+                try:
+                    completion = self.openrouter_client.chat.completions.create(
+                        messages=temp_history,
+                        model=self.backup_model,
+                        temperature=0.6,
+                        max_tokens=500,
+                        stop=["USER:", "User:", "Akhil:"] 
+                    )
+                    response_text = completion.choices[0].message.content
+                except Exception as backup_e:
+                    return f"System Failure: Both APIs down. {backup_e}"
+            else:
+                return f"Groq Error: {e}"
 
+        # --- PROCESS THE RESPONSE ---
+        recurse, output_or_speech, tool_used = self._process_response(response_text)
+        
+        # ==========================================
+        # STEP 2: RECURSION / TOOL DIGESTION (With Failover)
+        # ==========================================
+        if recurse:
+            print(f"   [Brain Logic] Digesting info from {tool_used}...")
+            follow_up_prompt = f"TOOL_OUTPUT: {output_or_speech}\nINSTRUCTION: Report result briefly."
+            
+            recurse_history = temp_history + [
+                {"role": "assistant", "content": response_text},
+                {"role": "system", "content": follow_up_prompt}
+            ]
+            
+            try:
+                follow_up_completion = self.client.chat.completions.create(
+                    messages=recurse_history,
+                    model=self.model,
+                    stop=["USER:", "User:"] 
+                )
+                final_response = follow_up_completion.choices[0].message.content
+
+            except Exception as e:
+                # --- RECURSION FAILOVER TRIGGER ---
+                if "429" in str(e) or "rate limit" in str(e).lower():
+                    print("   [Brain Warning] Groq Limit Hit (Step 2). Rerouting to OpenRouter...")
+                    try:
+                        follow_up_completion = self.openrouter_client.chat.completions.create(
+                            messages=recurse_history,
+                            model=self.backup_model,
+                            stop=["USER:", "User:"] 
+                        )
+                        final_response = follow_up_completion.choices[0].message.content
+                    except Exception as backup_e:
+                        return f"System Failure: Both APIs down during follow-up. {backup_e}"
+                else:
+                    return f"Groq Error during follow-up: {e}"
+
+            self.history.append({"role": "assistant", "content": final_response})
+            _, final_speech, _ = self._process_response(final_response)
+            return final_speech
+
+        self.history.append({"role": "assistant", "content": response_text})
+        return output_or_speech
 if __name__ == "__main__":
     bot = Brain()
     print(bot.get_greeting())

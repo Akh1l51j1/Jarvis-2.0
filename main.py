@@ -1,4 +1,5 @@
 import sys
+sys.stdout.reconfigure(encoding='utf-8')
 import time
 import os
 from datetime import datetime
@@ -51,7 +52,7 @@ def main():
     try:
         ear = AudioListener() 
         mouth = Speaker()
-        brain = Brain()
+        brain = Brain(bridge=bridge)
     except Exception as e:
         print(f"\n>> CRITICAL STARTUP ERROR: {e}")
         return
@@ -75,7 +76,7 @@ def main():
                 print("\n>> Waiting for Wake Word...")
 
             # --- LISTEN ---
-            user_text = ear.listen()
+            user_text = ear.listen(timeout=1.0)
             has_spoken = len(user_text) > 3
             
             # --- SMART TIMEOUT CHECK ---
@@ -115,7 +116,7 @@ def main():
                 print(f"USER: {user_text}")
                 bridge.log(f"USER: {user_text}")
 
-                was_playing = music_engine.is_playing()
+                was_playing = music_engine.is_playing()         
                 if was_playing: music_engine.pause_music()
 
                 command = user_text.lower()
@@ -142,7 +143,7 @@ def main():
                     continue
 
                 # --- 2. SYSTEM COMMANDS ---
-                soft_triggers = ["nothing","standby","stand by" "no thanks", "stop listening", "bye", "goodbye"]
+                soft_triggers = ["nothing","standby","stand by","no thanks", "stop listening", "bye", "goodbye"]
                 if any(trigger in command for trigger in soft_triggers):    
                     mouth.speak("Standing by, Sir.")
                     conversation_mode = False

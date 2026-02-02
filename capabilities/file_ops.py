@@ -140,22 +140,18 @@ class FileOps:
         if "|" not in args: return "Error: Use format 'filename|content'"
         filename, content = args.split("|", 1)
         
-        if "/" in filename or "\\" in filename:
-             path = FileOps._smart_path_builder(filename.strip())
-        else:
-             matches = FileOps.find_all_files(filename.strip())
-             if matches and len(matches) == 1:
-                 path = matches[0]
-             else:
-                 path = FileOps._smart_path_builder(filename.strip())
-
-        if not FileOps._is_safe_to_write(path): return "Safety Alert."
+        # --- SAFETY LOCK: FORCE TO DESKTOP ---
+        # Ignores whatever folder Jarvis tries to guess and forces it to your Desktop.
+        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+        path = os.path.join(desktop_dir, os.path.basename(filename.strip()))
 
         try:
-            with open(path, 'w', encoding='utf-8') as f: f.write(content)
-            return f"Success: Wrote to '{os.path.basename(path)}'."
-        except Exception as e: return f"Write Error: {e}"
-
+            with open(path, 'w', encoding='utf-8') as f: 
+                f.write(content)
+            return f"Success: Wrote to '{os.path.basename(path)}' on Desktop."
+        except Exception as e: 
+            return f"Write Error: {e}"
+        
     @staticmethod
     def locate_file(filename):
         # 1. PATH PRIORITY (Strip Quotes too!)
