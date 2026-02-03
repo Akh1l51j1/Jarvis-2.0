@@ -8,7 +8,7 @@ import time
 CHANNELS = 1
 RATE = 16000
 CHUNK = 512 
-SILENCE_THRESHOLD = 1.6  
+SILENCE_THRESHOLD = 2.0  # Increased from 1.6 to prevent premature interruption
 VAD_SENSITIVITY = 0.5    
 
 class AudioListener:
@@ -85,9 +85,13 @@ class AudioListener:
                 silence_frames = 0 
             
             elif started:
+                # Continue collecting frames during silence (for natural pauses)
                 frames.append(data)
                 silence_frames += 1
-                if silence_frames > (RATE / CHUNK * SILENCE_THRESHOLD):
+                # Strictly respect the silence threshold - don't break on short breaths
+                # Calculate required silence frames: (sample_rate / chunk_size) * seconds
+                required_silence_frames = int((RATE / CHUNK) * SILENCE_THRESHOLD)
+                if silence_frames > required_silence_frames:
                     break
 
         if not frames: return ""

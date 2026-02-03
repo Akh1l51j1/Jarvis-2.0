@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import send2trash
 from concurrent.futures import ThreadPoolExecutor
@@ -38,39 +39,41 @@ class FileOps:
              if first_char in "defg":
                  return f"{first_char.upper()}:{clean_info[1:]}"
 
-        # 3. Handle "Desktop\File.txt"
-        if clean_info.lower().startswith("desktop\\"):
-            clean_info = clean_info[8:] # Strip "desktop\"
-            return os.path.join(FileOps.DESKTOP_PATH, clean_info)
+        # 3. Handle "Desktop\File.txt" and prevent Desktop\Desktop duplication
+        # Remove "Desktop" prefix if present (case-insensitive, with or without separator)
+        clean_info = re.sub(r'^[Dd]esktop[\\/]?', '', clean_info).strip()
+        # Also remove standalone "Desktop" word at start
+        if clean_info.lower().startswith("desktop"):
+            clean_info = clean_info[7:].lstrip("\\/").strip()
             
         # 4. Default to Desktop if just a name
         return os.path.join(FileOps.DESKTOP_PATH, clean_info)
 
     @staticmethod
     def find_all_files(filename):
-        print(f"   [Analyst] Scanning ALL drives for: {filename}...")
+        """Fuzzy/partial search: Desktop and Documents. Match when search term is part of filename (case-insensitive)."""
+        print(f"   [Analyst] Scanning Desktop and Documents for: {filename}...")
         
         base = filename.strip().strip('"').strip("'")
-        variants = {base, base.replace("_", " "), base.replace(" ", "_")}
         
         # Fast Path: If it's already an absolute path, check it immediately
         if os.path.isabs(base):
-            if os.path.exists(base): return [base]
-            # Check variants
+            if os.path.exists(base):
+                return [base]
             folder = os.path.dirname(base)
             name = os.path.basename(base)
-            name_variants = {name, name.replace("_", " "), name.replace(" ", "_")}
             if os.path.exists(folder):
-                for v in name_variants:
-                    test_path = os.path.join(folder, v)
-                    if os.path.exists(test_path): return [test_path]
+                for f in os.listdir(folder):
+                    if f.lower() == name.lower():
+                        return [os.path.join(folder, f)]
 
-        clean_name = base.lower().replace(".exe", "")
+        search_term = base.lower()
+        # Normalize: treat spaces and underscores as equivalent for partial match
+        search_normalized = search_term.replace(" ", "_")
         
         roots = [
             FileOps.DESKTOP_PATH,
-            os.path.join(FileOps.USER_PATH, "Downloads"),
-            "D:\\", "E:\\", "F:\\"
+            os.path.join(FileOps.USER_PATH, "Documents"),
         ]
         
         found_files = []
@@ -78,32 +81,36 @@ class FileOps:
         def scan(root):
             local_matches = []
             try:
-                if not os.path.exists(root): return []
+                if not os.path.exists(root):
+                    return []
                 for dirpath, dirnames, filenames in os.walk(root):
-                    if "windows" in dirpath.lower() or "$recycle" in dirpath.lower(): continue
-                    if ".git" in dirpath.lower() or "node_modules" in dirpath.lower(): continue
-                    
+                    if "windows" in dirpath.lower() or "$recycle" in dirpath.lower():
+                        continue
+                    if ".git" in dirpath.lower() or "node_modules" in dirpath.lower():
+                        continue
                     for f in filenames:
-                        if any(v.lower() == f.lower() for v in variants):
+                        f_lower = f.lower()
+                        # Partial match: search term is part of filename (case-insensitive)
+                        if search_term in f_lower or search_normalized in f_lower:
                             local_matches.append(os.path.join(dirpath, f))
-                    
                     for d in dirnames:
-                        if any(v.lower() == d.lower() for v in variants):
+                        d_lower = d.lower()
+                        if search_term in d_lower or search_normalized in d_lower:
                             local_matches.append(os.path.join(dirpath, d))
-                            
+                    # Fuzzy fallback: high similarity ratio
                     if not local_matches:
                         for f in filenames:
-                            if SequenceMatcher(None, clean_name, f.lower()).ratio() > 0.85:
+                            if SequenceMatcher(None, search_term, f.lower()).ratio() > 0.85:
                                 local_matches.append(os.path.join(dirpath, f))
                         for d in dirnames:
-                            if SequenceMatcher(None, clean_name, d.lower()).ratio() > 0.85:
+                            if SequenceMatcher(None, search_term, d.lower()).ratio() > 0.85:
                                 local_matches.append(os.path.join(dirpath, d))
-            except: pass
+            except Exception:
+                pass
             return local_matches
 
         with ThreadPoolExecutor() as ex:
             results = ex.map(scan, roots)
-            
         for r in results:
             found_files.extend(r)
         return list(set(found_files))
@@ -112,6 +119,11 @@ class FileOps:
 
     @staticmethod
     def create_file(file_info):
+        # --- FAILSAFE: Check if pipe detected (filename|content format) ---
+        if "|" in file_info:
+            # Redirect to write_to_file if content is provided
+            return FileOps.write_to_file(file_info)
+        
         target_path = FileOps._smart_path_builder(file_info)
 
         if not FileOps._is_safe_to_write(target_path): return "Safety Alert: Access Denied."
@@ -140,10 +152,17 @@ class FileOps:
         if "|" not in args: return "Error: Use format 'filename|content'"
         filename, content = args.split("|", 1)
         
+        # --- SMART PATH BUILDER: Strip Desktop prefix to prevent duplication ---
+        # Use the smart path builder to clean the filename (strips Desktop/Desktop\ etc.)
+        clean_filename = filename.strip()
+        # Apply Desktop stripping logic before joining with Desktop path
+        clean_filename = re.sub(r'^[Dd]esktop[\\/]?', '', clean_filename).strip()
+        if clean_filename.lower().startswith("desktop"):
+            clean_filename = clean_filename[7:].lstrip("\\/").strip()
+        
         # --- SAFETY LOCK: FORCE TO DESKTOP ---
-        # Ignores whatever folder Jarvis tries to guess and forces it to your Desktop.
-        desktop_dir = os.path.join(os.path.expanduser("~"), "Desktop")
-        path = os.path.join(desktop_dir, os.path.basename(filename.strip()))
+        # Use the detected Desktop path (OneDrive or local)
+        path = os.path.join(FileOps.DESKTOP_PATH, os.path.basename(clean_filename))
 
         try:
             with open(path, 'w', encoding='utf-8') as f: 
@@ -156,17 +175,21 @@ class FileOps:
     def locate_file(filename):
         # 1. PATH PRIORITY (Strip Quotes too!)
         if "/" in filename or "\\" in filename:
-             direct_path = FileOps._smart_path_builder(filename)
-             if os.path.exists(direct_path):
-                 return direct_path
+            direct_path = FileOps._smart_path_builder(filename)
+            if os.path.exists(direct_path):
+                return direct_path
 
-        # 2. DEEP SCAN
+        # 2. FUZZY / PARTIAL SEARCH (Desktop + Documents via find_all_files)
         matches = FileOps.find_all_files(filename)
-        if not matches: return f"Could not locate '{filename}'."
-        if len(matches) == 1: return matches[0]
-        
-        response = f"I found {len(matches)} matches. Please specify which one:\n"
-        for i, match in enumerate(matches, 1): response += f"{i}. {match}\n"
+        if not matches:
+            return f"Could not locate '{filename}'."
+        if len(matches) == 1:
+            return matches[0]
+
+        # 3. AMBIGUITY: Multiple files — do NOT return newest or first. Return formatted list.
+        response = "Found multiple files. Please specify which one:\n"
+        for i, match in enumerate(matches, 1):
+            response += f"{i}. {match}\n"
         return response
 
     @staticmethod

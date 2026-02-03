@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import psutil
 from tavily import TavilyClient
 import config
@@ -29,7 +30,13 @@ class SystemOps:
         
         # --- 0. SMART FILE OPENER (FIXED) ---
         # 1. Clean the name (Remove "Desktop/" if the Brain added it)
+        # Also strip standalone "Desktop" word to prevent Desktop\Desktop duplication
         clean_name = app_name.replace("Desktop/", "").replace("Desktop\\", "").replace("desktop/", "").replace("desktop\\", "")
+        # Additional fix: Remove "Desktop" word if it appears at the start (case-insensitive)
+        clean_name = re.sub(r'^[Dd]esktop[\\/]?', '', clean_name).strip()
+        # Remove any remaining "Desktop" word that might cause duplication
+        if clean_name.lower().startswith("desktop"):
+            clean_name = clean_name[7:].lstrip("\\/").strip()
         
         # 2. Build Paths
         # Path A: Exactly what was asked (e.g. "D:/Folder/file.txt")
