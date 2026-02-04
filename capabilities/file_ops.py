@@ -51,26 +51,23 @@ class FileOps:
 
     @staticmethod
     def find_all_files(filename):
-        """Fuzzy/partial search: Desktop and Documents. Match when search term is part of filename (case-insensitive)."""
-        print(f"   [Analyst] Scanning Desktop and Documents for: {filename}...")
+        """Enhanced fuzzy search with exact match priority and formatted multiple results."""
+        print(f"   [Analyst] Scanning for: {filename}...")
         
         base = filename.strip().strip('"').strip("'")
         
-        # Fast Path: If it's already an absolute path, check it immediately
-        if os.path.isabs(base):
-            if os.path.exists(base):
-                return [base]
-            folder = os.path.dirname(base)
-            name = os.path.basename(base)
-            if os.path.exists(folder):
-                for f in os.listdir(folder):
-                    if f.lower() == name.lower():
-                        return [os.path.join(folder, f)]
-
+        # Step 1: Check for exact match first
+        if os.path.isabs(base) and os.path.exists(base):
+            return [base]
+        
+        # Check for exact match in current directory
+        if os.path.exists(base):
+            return [os.path.abspath(base)]
+        
         search_term = base.lower()
-        # Normalize: treat spaces and underscores as equivalent for partial match
         search_normalized = search_term.replace(" ", "_")
         
+        # Step 2: Scan Desktop and Documents for partial matches
         roots = [
             FileOps.DESKTOP_PATH,
             os.path.join(FileOps.USER_PATH, "Documents"),
@@ -88,15 +85,27 @@ class FileOps:
                         continue
                     if ".git" in dirpath.lower() or "node_modules" in dirpath.lower():
                         continue
+                    
+                    # Check for files
                     for f in filenames:
                         f_lower = f.lower()
-                        # Partial match: search term is part of filename (case-insensitive)
-                        if search_term in f_lower or search_normalized in f_lower:
+                        # Exact match (case-insensitive)
+                        if f_lower == search_term:
+                            local_matches.insert(0, os.path.join(dirpath, f))  # Prioritize exact matches
+                        # Partial match: search term is part of filename
+                        elif search_term in f_lower or search_normalized in f_lower:
                             local_matches.append(os.path.join(dirpath, f))
+                    
+                    # Check for directories
                     for d in dirnames:
                         d_lower = d.lower()
-                        if search_term in d_lower or search_normalized in d_lower:
+                        # Exact match (case-insensitive)
+                        if d_lower == search_term:
+                            local_matches.insert(0, os.path.join(dirpath, d))  # Prioritize exact matches
+                        # Partial match: search term is part of directory name
+                        elif search_term in d_lower or search_normalized in d_lower:
                             local_matches.append(os.path.join(dirpath, d))
+                    
                     # Fuzzy fallback: high similarity ratio
                     if not local_matches:
                         for f in filenames:
@@ -113,7 +122,24 @@ class FileOps:
             results = ex.map(scan, roots)
         for r in results:
             found_files.extend(r)
-        return list(set(found_files))
+        
+        # Remove duplicates while preserving order (exact matches first)
+        unique_files = []
+        seen = set()
+        for file in found_files:
+            if file not in seen:
+                seen.add(file)
+                unique_files.append(file)
+        
+        # Step 3: If multiple files found, return formatted string
+        if len(unique_files) > 1:
+            formatted_list = "Found multiple matches:\n"
+            for i, file_path in enumerate(unique_files, 1):
+                file_name = os.path.basename(file_path)
+                formatted_list += f"{i}. {file_name}\n"
+            return formatted_list
+        
+        return unique_files
 
     # --- TOOLS ---
 
@@ -180,15 +206,21 @@ class FileOps:
                 return direct_path
 
         # 2. FUZZY / PARTIAL SEARCH (Desktop + Documents via find_all_files)
-        matches = FileOps.find_all_files(filename)
-        if not matches:
+        result = FileOps.find_all_files(filename)
+        
+        # Handle the case where find_all_files returns a formatted string for multiple matches
+        if isinstance(result, str) and result.startswith("Found multiple matches"):
+            return result
+        
+        # Handle the case where find_all_files returns a list (single match or empty)
+        if not result:
             return f"Could not locate '{filename}'."
-        if len(matches) == 1:
-            return matches[0]
+        if len(result) == 1:
+            return result[0]
 
         # 3. AMBIGUITY: Multiple files — do NOT return newest or first. Return formatted list.
         response = "Found multiple files. Please specify which one:\n"
-        for i, match in enumerate(matches, 1):
+        for i, match in enumerate(result, 1):
             response += f"{i}. {match}\n"
         return response
 
@@ -209,16 +241,22 @@ class FileOps:
                          return f"Success: Deleted folder '{os.path.basename(target)}'."
                  except Exception as e: return f"Error: {e}"
 
-        matches = FileOps.find_all_files(filename)
+        result = FileOps.find_all_files(filename)
         
-        if not matches: return f"File '{filename}' not found."
+        # Handle formatted string response for multiple matches
+        if isinstance(result, str) and result.startswith("Found multiple matches"):
+            return result
         
-        if len(matches) > 1:
-            response = f"Found {len(matches)} files. Which one to delete?\n"
-            for m in matches: response += f"- {m}\n"
+        # Handle list response
+        if not result: return f"File '{filename}' not found."
+        
+        if len(result) > 1:
+            response = f"Found {len(result)} files. Which one to delete?\n"
+            for i, match in enumerate(result, 1):
+                response += f"{i}. {match}\n"
             return response
 
-        target = matches[0]
+        target = result[0]
         if not FileOps._is_safe_to_write(target): return f"Safety Alert: Cannot delete {target}"
         
         try:
@@ -241,10 +279,14 @@ class FileOps:
              if os.path.exists(check_path): src_path = check_path
         
         if not src_path:
-            matches = FileOps.find_all_files(file_name.strip())
-            if not matches: return f"Error: Could not find '{file_name}'."
-            if len(matches) > 1: return f"Found multiple files. Please specify source."
-            src_path = matches[0]
+            result = FileOps.find_all_files(file_name.strip())
+            # Handle formatted string response for multiple matches
+            if isinstance(result, str) and result.startswith("Found multiple matches"):
+                return result
+            # Handle list response
+            if not result: return f"Error: Could not find '{file_name}'."
+            if len(result) > 1: return f"Found multiple files. Please specify source."
+            src_path = result[0]
         
         dest_dir = FileOps._smart_path_builder(dest_name.strip())
 
@@ -271,12 +313,16 @@ class FileOps:
                         return f"--- {os.path.basename(direct_path)} ---\n" + f.read()[:5000]
                  except Exception as e: return f"Read Error: {e}"
 
-        matches = FileOps.find_all_files(file_name)
-        if not matches: return "File not found."
-        if len(matches) > 1: return f"Multiple files found."
+        result = FileOps.find_all_files(file_name)
+        # Handle formatted string response for multiple matches
+        if isinstance(result, str) and result.startswith("Found multiple matches"):
+            return result
+        # Handle list response
+        if not result: return "File not found."
+        if len(result) > 1: return f"Multiple files found."
         try:
-            with open(matches[0], 'r', encoding='utf-8', errors='ignore') as f:
-                return f"--- {os.path.basename(matches[0])} ---\n" + f.read()[:5000]
+            with open(result[0], 'r', encoding='utf-8', errors='ignore') as f:
+                return f"--- {os.path.basename(result[0])} ---\n" + f.read()[:5000]
         except Exception as e: return f"Read Error: {e}"
     
     @staticmethod
