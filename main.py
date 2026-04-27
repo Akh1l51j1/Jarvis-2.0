@@ -1,5 +1,4 @@
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
 import time
 import os
 from datetime import datetime
@@ -10,6 +9,39 @@ import config
 from capabilities.music_ops import music_engine 
 from server_bridge import bridge
 from capabilities.gaming_ops import gaming_engine
+
+# --- TEE LOGGER FOR VIDEO DEMO ---
+class Tee:
+    """
+    Tee logger that writes to both terminal and log file simultaneously.
+    """
+    def __init__(self, filename):
+        self.terminal = sys.__stdout__
+        self.log = open(filename, "a", encoding="utf-8")
+    
+    def write(self, message):
+        self.terminal.write(message)
+        self.log.write(message)
+        self.flush()
+    
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+    
+    def close(self):
+        self.log.close()
+    
+    def reconfigure(self, **kwargs):
+        """
+        Pass through reconfigure to the terminal stdout.
+        This is needed for encoding configuration.
+        """
+        if hasattr(self.terminal, 'reconfigure'):
+            self.terminal.reconfigure(**kwargs)
+
+# Redirect stdout to Tee logger for video demo
+sys.stdout = Tee("Debug_log.txt")
+sys.stdout.reconfigure(encoding='utf-8')
 
 # --- HARDCODED NVIDIA DLL FIX (MARK III STABILITY) ---
 def initialize_nvidia_dlls():

@@ -37,6 +37,17 @@ class AppOpener:
     def open_app(app_name):
         target = app_name.lower().replace("settings", "").strip()
         
+        # NEW: FILE EXTENSION CHECK - If input has a file extension, open it directly
+        import re
+        file_extension_pattern = r'\.(txt|pdf|py|docx|doc|pptx|ppt|xlsx|xls|jpg|jpeg|png|gif|mp3|mp4|avi|mov|zip|rar)$'
+        if re.search(file_extension_pattern, target):
+            print(f"   [System] Opening file directly: {target}")
+            try:
+                os.startfile(target)
+                return f"Opened {target}."
+            except Exception as e:
+                return f"Error opening file: {e}"
+        
         # A. ALIAS CHECK
         if target in AppOpener.ALIASES:
             target = AppOpener.ALIASES[target]

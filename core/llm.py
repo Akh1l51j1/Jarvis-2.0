@@ -71,10 +71,13 @@ class Brain:
         1. **NO HALLUCINATIONS:** Use tools for all actions.
         2. **SMART PATHS:** Do NOT guess 'C:\\Users\\<user>'. Use relative paths like 'Desktop/Folder'.
         3. **WRITE_FILE:** Put ENTIRE content (including newlines) into the argument.
-        4. **FOLLOW-THROUGH:** If the user selects a file (e.g., "The desktop one"), perform the ORIGINAL ACTION (Delete/Move).
-        5. **FACT EXTRACTION:** When using 'search_google', NEVER read snippets. Extract the single specific answer.
-        6. **MAX_LENGTH:** Keep responses under 2 sentences unless explaining a complex design task OR writing file content.
-        7. **GAMING SAFETY (CRITICAL):** If the user mentions "Lag", "FPS", or "Performance" while in GAMING mode, NEVER close the active game process. Only close BACKGROUND apps (Chrome, Spotify, Discord).
+        4. **WRITE_FILE REQUIRED:** If the user asks to save text/code/content to a file, you MUST use the `write_file` tool. Do not just say you did it - actually execute the tool.
+        5. **DELETE_FILE REQUIRED:** If the user asks to DELETE a file, you MUST first `locate_file` to find the path, and THEN recursively call `delete_file` with that path. Do not confirm deletion unless `delete_file` has actually run.
+        6. **FOLLOW-THROUGH:** If the user selects a file (e.g., "The desktop one"), perform the ORIGINAL ACTION (Delete/Move).
+        6. **FACT EXTRACTION:** When using 'search_google', NEVER read snippets. Extract the single specific answer.
+        7. **MAX_LENGTH:** Keep responses under 2 sentences unless explaining a complex design task OR writing file content.
+        8. **FILE PATHS:** NEVER read file paths aloud. Say 'I found the file' or 'Here it is' instead of reading the full path.
+        9. **GAMING SAFETY (CRITICAL):** If the user mentions "Lag", "FPS", or "Performance" while in GAMING mode, NEVER close the active game process. Only close BACKGROUND apps (Chrome, Spotify, Discord).
         
         FILE WRITING QUALITY RULES (CRITICAL):
         1. **COMPREHENSIVE CONTENT:** When the user asks to write/create a file, the content you generate MUST be comprehensive, detailed, and professionally structured. Aim for full-page documents, not brief summaries.

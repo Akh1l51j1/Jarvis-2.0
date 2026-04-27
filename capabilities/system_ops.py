@@ -54,19 +54,63 @@ class SystemOps:
                 return f"Opened file from Desktop: {clean_name}"
 
         # --- 1. THE SEARCH TRAP ---
+        # Flexible YouTube search detection
+        if "youtube" in target and ("search" in target or "find" in target):
+            # Extract query by removing trigger words
+            trigger_words = ["youtube", "search", "for", "find", "open", "on", "in"]
+            words = target.split()
+            query_words = [word for word in words if word not in trigger_words]
+            query = " ".join(query_words).strip()
+            
+            if query:
+                safe_query = query.replace(" ", "+")
+                os.system(f"start https://www.youtube.com/results?search_query={safe_query}")
+                return f"Searching YouTube for '{query}'"
+        
+        # Fallback to original search logic for other platforms
         if "search for" in target:
             query = target.split("search for")[-1].strip()
             safe_query = query.replace(" ", "+") 
             
-            if "youtube" in target:
-                os.system(f"start https://www.youtube.com/results?search_query={safe_query}")
-                return f"Searching YouTube for '{query}'"
-            elif "reddit" in target:
+            if "reddit" in target:
                 os.system(f"start https://www.reddit.com/search/?q={safe_query}")
                 return f"Searching Reddit for '{query}'"
             else:
                 os.system(f"start https://www.google.com/search?q={safe_query}")
                 return f"Searching Google for '{query}'"
+
+        # --- 2. WEBSITE DETECTION ---
+        # Handle website URLs and common website names
+        website_mapping = {
+            "w3schools": "https://www.w3schools.com/",
+            "github": "https://github.com/",
+            "stackoverflow": "https://stackoverflow.com/",
+            "youtube": "https://www.youtube.com/",
+            "google": "https://www.google.com/",
+            "reddit": "https://www.reddit.com/",
+            "twitter": "https://twitter.com/",
+            "facebook": "https://facebook.com/",
+            "instagram": "https://instagram.com/",
+            "linkedin": "https://linkedin.com/",
+            "netflix": "https://netflix.com/",
+            "amazon": "https://amazon.com/",
+        }
+        
+        # Check if it's a direct URL
+        if target.startswith(('http://', 'https://', 'www.')):
+            url = target
+            if target.startswith('www.'):
+                url = 'https://' + target
+            print(f"   [Web] Opening URL: {url}")
+            os.system(f"start {url}")
+            return f"Opened {url}"
+        
+        # Check if it's a known website name
+        if target in website_mapping:
+            url = website_mapping[target]
+            print(f"   [Web] Opening: {target} -> {url}")
+            os.system(f"start {url}")
+            return f"Opened {target}"
 
         # --- 2. APP LIBRARY (Hardcoded Speed) ---
         user_path = os.path.expanduser("~")
@@ -109,6 +153,19 @@ class SystemOps:
         """Closes an application by killing its process."""
         print(f"   [Tool] Closing: {app_name}")
         target = app_name.lower().strip()
+
+        # --- FILE EXTENSION HANDLING ---
+        # If it's a file with extension, map to parent app or use Alt+F4
+        import re
+        file_extension_pattern = r'\.(txt|pdf|docx|doc|pptx|ppt|xlsx|xls|jpg|jpeg|png|gif|mp3|mp4|avi|mov|zip|rar)$'
+        if re.search(file_extension_pattern, target):
+            print(f"   [System] Detected file extension, closing active window")
+            try:
+                import pyautogui
+                pyautogui.hotkey('alt', 'f4')
+                return f"Closed active window (file: {app_name})."
+            except Exception as e:
+                return f"Failed to close file window: {e}"
 
         # --- PROCESS MAP (For Closing) ---
         processes = {

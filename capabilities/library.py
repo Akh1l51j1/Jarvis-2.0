@@ -5,6 +5,7 @@ from capabilities.comm_ops import comm_engine
 from capabilities.shazam_ops import identify_music
 from capabilities.rag_ops import rag_engine
 from capabilities.file_ops import FileOps
+from capabilities.ui_ops import UIOps
 
 tool_registry = {
     # System
@@ -48,4 +49,10 @@ tool_registry = {
     "copy_file": { "func": FileOps.copy_file, "desc": "Copy to clipboard." },
     "cut_file": { "func": FileOps.cut_file, "desc": "Cut to clipboard." },
     "paste_file": { "func": FileOps.paste_file, "desc": "Paste clipboard." },
+    
+    # UI Controls
+    "scroll_down": { "func": UIOps.scroll_down, "desc": "Scrolls the screen down." },
+    "scroll_up": { "func": UIOps.scroll_up, "desc": "Scrolls the screen up." },
+    "press_space": { "func": UIOps.press_space, "desc": "Presses spacebar (Play/Pause video)." },
+    "toggle_fullscreen": { "func": UIOps.toggle_fullscreen, "desc": "Presses 'f' for fullscreen." },
 }

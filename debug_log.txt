@@ -1,9 +1,247 @@
 === JARVIS LAUNCH LOG ===
-[13:24:12] Launcher started.
-[13:24:12] Root Directory: D:\jarvis 2.0
-[13:24:12] UI Directory found: D:\jarvis 2.0\JarvisUI
-[13:24:12] Attempting to launch UI (npm run dev)...
-[13:24:12] UI Process spawned. PID: 11468
-[13:24:15] Attempting to launch Brain (main.py)...
-[13:24:15] Brain Process spawned. PID: 22248
-[13:24:15] Monitoring processes...
+[17:25:22] Launcher started.
+[17:25:22] Root Directory: D:\jarvis 2.0
+[17:25:22] UI Directory found: D:\jarvis 2.0\JarvisUI
+[17:25:22] Attempting to launch UI (npm run dev)...
+[17:25:22] UI Process spawned. PID: 14048
+[17:25:25] Attempting to launch Brain (main.py)...
+[17:25:25] Brain Process spawned. PID: 25032
+[17:25:25] Monitoring processes...
+>> NVIDIA cuBLAS Path Linked.
+>> NVIDIA cuDNN Path Linked.
+
+>> STARTING JARVIS 2.0
+------------------------
+>> [Bridge] UI Server Online (Port 5000)
+>> Loading VAD Model...
+>> VAD/Whisper offloaded to: NVIDIA GeForce RTX 4060 Laptop GPU
+ * Serving Flask app 'server_bridge'
+ * Debug mode: off
+>> Loading Faster-Whisper (small.en)...
+>> Loading Kokoro TTS (v1.0)...
+    Kokoro TTS Loaded.
+>> Connecting to Groq (Llama 3.3)...
+>> Connecting to OpenRouter (Backup)...
+    Brain Connected (Groq Online).
+
+>> INITIALIZING SYSTEMS...
+JARVIS: Good evening, Akhil. Systems online.
+>> Speaking: Good evening, Akhil.
+>> Speaking: Systems online.
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+
+>> Waiting for Wake Word...
+USER: Jarviscan is search for mobile computing question paper.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: search_google -> mobile computing question paper
+   [Tavily] Searching: mobile computing question paper
+   [Brain Logic] Digesting info from search_google...
+JARVIS: I've found some relevant information. 
+Mobile Computing question papers typically cover topics such as Introduction to Mobile Computing, Mobile Networking, and Wireless Communications. Some common questions include defining mobile computing, listing its advantages, and distinguishing it from wireless computing. You can find more specific questions and study materials on websites like Studocu and Scribd.
+>> Speaking: I've found some relevant information.
+>> Speaking: Mobile Computing question papers typically cover topics such as Introduction to Mobile Computing, Mobile Networking, and Wireless Communications.
+>> Speaking: Some common questions include defining mobile computing, listing its advantages, and distinguishing it from wireless computing.
+>> Speaking: You can find more specific questions and study materials on websites like Studocu and Scribd.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Active Mode (Timeout in 12s)...
+
+>> Active Mode (Timeout in 11s)...
+USER: Jarvis, can you open K2 notes?
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> K2 Notes
+   [Tool] Processing: K2 Notes
+   [System] Hunting for: k2 notes
+   [Analyst] Scanning for: k2 notes.exe...
+   [Analyst] Scanning for: k2 notes.lnk...
+JARVIS: I'll grab those for you.
+>> Speaking: I'll grab those for you.
+
+>> Active Mode (Timeout in 15s)...
+USER: Thank you.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+JARVIS: You're welcome, all set.
+>> Speaking: You're welcome, all set.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Active Mode (Timeout in 13s)...
+
+>> Active Mode (Timeout in 12s)...
+
+>> Active Mode (Timeout in 11s)...
+
+>> Active Mode (Timeout in 10s)...
+
+>> Active Mode (Timeout in 9s)...
+
+>> Active Mode (Timeout in 8s)...
+
+>> Active Mode (Timeout in 7s)...
+USER: Akshara, can you open K2 notes?
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> K2 Notes
+   [Tool] Processing: K2 Notes
+   [System] Hunting for: k2 notes
+   [Analyst] Scanning for: k2 notes.exe...
+   [Analyst] Scanning for: k2 notes.lnk...
+JARVIS: Since you're not Akhil's girlfriend, I'll assume you're a friend. I'll still help you out, though.
+>> Speaking: Since you're not Akhil's girlfriend, I'll assume you're a friend.
+>> Speaking: I'll still help you out, though.
+
+>> Active Mode (Timeout in 15s)...
+USER: Let's go.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+JARVIS: Let's get moving then.
+>> Speaking: Let's get moving then.
+
+>> Active Mode (Timeout in 15s)...
+USER: Thank you for watching.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+JARVIS: It was my pleasure, have a great day.
+>> Speaking: It was my pleasure, have a great day.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Active Mode (Timeout in 12s)...
+
+>> Active Mode (Timeout in 11s)...
+USER: Jarvis, can you open KTU in notes?
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> KTU Notes
+   [Tool] Processing: KTU Notes
+   [System] Hunting for: ktu notes
+   [Analyst] Scanning for: ktu notes.exe...
+   [Analyst] Scanning for: ktu notes.lnk...
+JARVIS: KTU notes, coming right up.
+>> Speaking: KTU notes, coming right up.
+
+>> Active Mode (Timeout in 15s)...
+USER: We'll be right back.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+JARVIS: Take your time, I'll be here when you're ready.
+>> Speaking: Take your time, I'll be here when you're ready.
+
+>> Active Mode (Timeout in 15s)...
+USER: You didn't open KTO notes.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: locate_file -> KTU Notes
+   [Analyst] Scanning for: KTU Notes...
+   [Brain Logic] Digesting info from locate_file...
+JARVIS: I couldn't find the KTU Notes file. You might want to check if it's saved somewhere or if it's been renamed.
+>> Speaking: I couldn't find the KTU Notes file.
+>> Speaking: You might want to check if it's saved somewhere or if it's been renamed.
+
+>> Active Mode (Timeout in 15s)...
+USER: It's not file, it's a website.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> https://www.ktu.edu.in/
+   [Tool] Processing: https://www.ktu.edu.in/
+   [Web] Opening URL: https://www.ktu.edu.in/
+JARVIS: Let me get that website open for you.
+>> Speaking: Let me get that website open for you.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Active Mode (Timeout in 12s)...
+
+>> Active Mode (Timeout in 11s)...
+USER: Get your knots.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+JARVIS: I think you meant "notes", not "knots". Anyway, I've got the KTU website open, but if you need any specific notes, I'd be happy to help you find them.
+>> Speaking: I think you meant "notes", not "knots".
+>> Speaking: Anyway, I've got the KTU website open, but if you need any specific notes, I'd be happy to help you find them.
+
+>> Active Mode (Timeout in 15s)...
+USER: Yeah, open the website named KTUNorth.es.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> ktunorth.es
+   [Tool] Processing: ktunorth.es
+   [System] Hunting for: ktunorth.es
+   [Analyst] Scanning for: ktunorth.es.exe...
+   [Analyst] Scanning for: ktunorth.es.lnk...
+JARVIS: I'm on it. Time to dive into some academic goodness.
+>> Speaking: I'm on it.
+>> Speaking: Time to dive into some academic goodness.
+
+>> Active Mode (Timeout in 15s)...
+
+>> Active Mode (Timeout in 12s)...
+
+>> Active Mode (Timeout in 11s)...
+
+>> Active Mode (Timeout in 10s)...
+
+>> Active Mode (Timeout in 9s)...
+
+>> Active Mode (Timeout in 8s)...
+USER: Open it.
+
+   [Context] [CURRENT STATUS: Active App='brave' | Mode='CASUAL']
+ MODE: CASUAL. Full Stark Personality allowed. Be witty, sarcastic, and conversational.
+   [Brain Logic] Executing: open_app -> https://ktunorth.es
+   [Tool] Processing: https://ktunorth.es
+   [Web] Opening URL: https://ktunorth.es
+JARVIS: Here we go.
+>> Speaking: Here we go.
+
+>> Active Mode (Timeout in 15s)...
+USER: Bubble Sort, Python, Code, Algorithm, Function, Variable, Shutdown, Volume, Brightness, Torque.
+>> Speaking: Goodbye, Sir.
+[17:29:35] ⚠️ Brain has exited with code: 0
+[17:29:35] Terminating UI...
+[17:29:35] Cleanup complete. Goodbye.
