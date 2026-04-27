@@ -1,16 +1,45 @@
-# Ignore the huge library folder
-venv/
-__pycache__/
+# =================================================
+# Jarvis 2.0 - .gitignore
+# =================================================
 
-# Ignore sensitive keys (VERY IMPORTANT)
+# --- Virtual Environments ---
+venv/
+.venv/
+
+# --- Sensitive Configuration (CRITICAL: Never Commit) ---
 config.py
 
-# Ignore compiled files
-*.pyc
-*.DS_Store
+# --- Runtime Databases & Memory ---
+jarvis.db
+jarvis_memory_db/
+chroma_db/
+brain_db/
 
+# --- Python Compiled Files ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- Large Binary Model Files ---
 engine/*.onnx
 engine/*.bin
 engine/*.jit
-__pycache__/
-*.pyc
+
+# --- Log & Temp Files ---
+*.log
+debug_log.txt
+brain_error_log.txt
+Debug_log.txt
+*.mp3
+.cache
+
+# --- OS / Editor Artifacts ---
+*.DS_Store
+.cursorignore
+
+# --- Node.js (JarvisUI) ---
+JarvisUI/node_modules/
+
+# --- User-Specific Profile ---
+user_profile.json
