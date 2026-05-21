@@ -17,7 +17,7 @@ A polished **Electron + React** desktop UI streams live status and conversation 
 ## Key Features
 
 ### 🤖 Agentic Tool Orchestration
-- Maintains a **registered tool library** (`capabilities/library.py`) of 15+ callable functions covering file operations, system control, Spotify, web search, vision, Bluetooth, and more.
+- Maintains a **registered tool library** (`capabilities/library.py`) of 15+ callable functions covering file operations, system control, Spotify, web search, vision,and more.
 - The LLM selects and executes the correct tool at inference time using a structured `ACTION: tool_name | argument` protocol.
 - Supports **recursive tool chaining**: e.g., a `search_google` result is automatically fed back into the LLM for synthesis before being spoken.
 
@@ -88,7 +88,7 @@ jarvis 2.0/
 │   ├── memory_ops.py        # SQLite structured memory
 │   ├── vision_ops.py        # Screenshot + visual context
 │   ├── window_ops.py        # Active window detection (for personality matrix)
-│   └── ...                  # app_opener, bluetooth, comm, shazam, volume, etc.
+│   └── ...                  # app_opener, comm, shazam, volume, etc.
 │
 ├── engine/
 │   ├── listener.py          # faster-whisper ASR + Silero VAD pipeline
